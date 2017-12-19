@@ -178,7 +178,8 @@ class CollectedHeap : public CHeapObj<mtInternal> {
     CMS,
     G1,
     Epsilon,
-    Z
+    Z,
+    ThirdPartyHeap,
   };
 
   static inline size_t filler_array_max_size() {

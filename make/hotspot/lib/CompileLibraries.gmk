@@ -31,6 +31,9 @@ include NativeCompilation.gmk
 
 include HotspotCommon.gmk
 
+ifdef THIRD_PARTY_HEAP
+  include $(THIRD_PARTY_HEAP)/CompileThirdPartyHeap.gmk
+endif
 include lib/CompileJvm.gmk
 include lib/CompileDtraceLibraries.gmk
 

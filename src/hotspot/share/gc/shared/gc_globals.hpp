@@ -158,6 +158,9 @@
                                                                             \
   /* gc */                                                                  \
                                                                             \
+  product(bool, UseThirdPartyHeap, false,                                   \
+          "Use the thrtd-party heap for allocation and garbage collection") \
+                                                                            \
   product(bool, UseConcMarkSweepGC, false,                                  \
           "Use Concurrent Mark-Sweep GC in the old generation")             \
                                                                             \

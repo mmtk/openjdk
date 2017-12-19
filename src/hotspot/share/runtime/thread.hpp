@@ -58,6 +58,10 @@
 
 
 class SafeThreadsListPtr;
+#ifdef THIRD_PARTY_HEAP
+#  include "gc/shared/thirdPartyHeap.hpp"
+#endif
+
 class ThreadSafepointState;
 class ThreadsList;
 class ThreadsSMRSupport;
@@ -638,6 +642,11 @@ protected:
 
   uintptr_t self_raw_id()                    { return _self_raw_id; }
   void      set_self_raw_id(uintptr_t value) { _self_raw_id = value; }
+
+#ifdef THIRD_PARTY_HEAP
+  third_party_heap::MutatorContext* third_party_heap_mutator = NULL;
+  void* third_party_heap_collector = NULL;
+#endif
 
   int     lgrp_id() const        { return _lgrp_id; }
   void    set_lgrp_id(int value) { _lgrp_id = value; }
@@ -2114,6 +2123,7 @@ class Threads: AllStatic {
   static void initialize_jsr292_core_classes(TRAPS);
 
  public:
+ static inline JavaThread* get_thread_list() { return _thread_list; }
   // Thread management
   // force_daemon is a concession to JNI, where we may need to add a
   // thread to the thread list before allocating its thread object

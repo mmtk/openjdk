@@ -2405,6 +2405,8 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args, bool* patch_m
     // -da / -ea / -disableassertions / -enableassertions
     // These accept an optional class/package name separated by a colon, e.g.,
     // -da:java.lang.Thread.
+    } else if (match_option(option, "-XX:+UseThirdPartyHeap")) {
+        FLAG_SET_DEFAULT(UseThirdPartyHeap, true);
     } else if (match_option(option, user_assertion_options, &tail, true)) {
       bool enable = option->optionString[1] == 'e';     // char after '-' is 'e'
       if (*tail == '\0') {
