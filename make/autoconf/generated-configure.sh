@@ -5185,7 +5185,7 @@ VS_SDK_PLATFORM_NAME_2013=
 #CUSTOM_AUTOCONF_INCLUDE
 
 # Do not change or remove the following line, it is needed for consistency checks:
-DATE_WHEN_GENERATED=1513206608
+DATE_WHEN_GENERATED=1513676081
 
 ###############################################################################
 #
@@ -53074,7 +53074,8 @@ fi
 
   fi
 
-LDFLAGS_JDKLIB="${LDFLAGS_JDKLIB} ${JAVA_BASE_LDFLAGS}"
+  LDFLAGS_JDKLIB="${LDFLAGS_JDKLIB} ${JAVA_BASE_LDFLAGS}"
+  JVM_LIBS="$JVM_LIBS -L${TOPDIR}/mmtk/target/release -lmmtk"
 
   # Set JVM_LIBS (per os)
   if test "x$OPENJDK_TARGET_OS" = xlinux; then
@@ -53957,7 +53958,8 @@ fi
 
   fi
 
-OPENJDK_BUILD_LDFLAGS_JDKLIB="${OPENJDK_BUILD_LDFLAGS_JDKLIB} ${OPENJDK_BUILD_JAVA_BASE_LDFLAGS}"
+  OPENJDK_BUILD_LDFLAGS_JDKLIB="${OPENJDK_BUILD_LDFLAGS_JDKLIB} ${OPENJDK_BUILD_JAVA_BASE_LDFLAGS}"
+  OPENJDK_BUILD_JVM_LIBS="$OPENJDK_BUILD_JVM_LIBS -L${TOPDIR}/mmtk/target/release -lmmtk"
 
   # Set OPENJDK_BUILD_JVM_LIBS (per os)
   if test "x$OPENJDK_BUILD_OS" = xlinux; then
