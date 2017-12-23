@@ -82,7 +82,6 @@
 #include "utilities/macros.hpp"
 #include "utilities/ostream.hpp"
 #include "utilities/preserveException.hpp"
-#include "../../../../mmtk/api/mmtk.h"
 #if INCLUDE_CDS
 #include "classfile/sharedClassUtil.hpp"
 #endif
@@ -757,14 +756,12 @@ CollectedHeap* Universe::create_heap() {
 
 jint Universe::initialize_heap() {
   jint status = JNI_ERR;
-  
-  printf("inside universe.cpp Calling gc_init\n");
-  gc_init(50000000);
 
   _collectedHeap = create_heap_ext();
   if (_collectedHeap == NULL) {
     _collectedHeap = create_heap();
   }
+
   status = _collectedHeap->initialize();
   if (status != JNI_OK) {
     return status;

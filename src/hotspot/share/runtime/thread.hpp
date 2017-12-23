@@ -56,8 +56,6 @@
 # include "stack_zero.hpp"
 #endif
 
-#include "../../../../mmtk/api/mmtk.h"
-
 class ThreadSafepointState;
 class ThreadsList;
 class ThreadsSMRSupport;
@@ -558,9 +556,6 @@ class Thread: public ThreadShadow {
   // calling thread does the update, this indicates that the calling thread
   // has claimed the thread's stack as a root groop in the current
   // collection.
-     ///---for allocating by mmtk---
-     MMTk_Mutator mmtkMutator;
-     
   bool claim_oops_do(bool is_par, int collection_parity) {
     if (!is_par) {
       _oops_do_parity = collection_parity;
@@ -626,13 +621,7 @@ protected:
   void      set_self_raw_id(uintptr_t value) { _self_raw_id = value; }
 
   int     lgrp_id() const        { return _lgrp_id; }
-  void    set_lgrp_id(int value) {
-      _lgrp_id = value;
-      ///bind_mutator-----------
-      if(_lgrp_id!=-1){
-          mmtkMutator = bind_mutator(_lgrp_id);
-      }
-  }
+  void    set_lgrp_id(int value) { _lgrp_id = value; }
 
   // Printing
   virtual void print_on(outputStream* st) const;
