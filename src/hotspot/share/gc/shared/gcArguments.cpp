@@ -140,7 +140,11 @@ jint GCArguments::initialize() {
     jio_fprintf(defaultStream::error_stream(), "UseConcMarkSweepGC not supported in this VM.\n");
     return JNI_ERR;
 #else
-  if (UseParallelGC || UseParallelOldGC) {
+    if(UseMMTk){
+        printf("inside gcArguments.. got UseMMTk\n");
+        _instance = new ParallelArguments();
+  }
+  else if (UseParallelGC || UseParallelOldGC) {
     _instance = new ParallelArguments();
   } else if (UseG1GC) {
     _instance = new G1Arguments();
