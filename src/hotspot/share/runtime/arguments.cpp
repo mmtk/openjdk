@@ -2660,6 +2660,7 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args, bool* patch_m
         // string constant object.
         build_jvm_args(option->optionString);
     }
+    
 
     // -verbose:[class/module/gc/jni]
     if (match_option(option, "-verbose", &tail)) {
@@ -2679,7 +2680,13 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args, bool* patch_m
     // -da / -ea / -disableassertions / -enableassertions
     // These accept an optional class/package name separated by a colon, e.g.,
     // -da:java.lang.Thread.
-    } else if (match_option(option, user_assertion_options, &tail, true)) {
+    }
+    ///////Test for MMTk --- Tanveer
+    else if (match_option(option, "-XX:+UseMMTk")) {
+        printf("inside arguments.cpp got MMTk from command line\n");
+    }
+    
+    else if (match_option(option, user_assertion_options, &tail, true)) {
       bool enable = option->optionString[1] == 'e';     // char after '-' is 'e'
       if (*tail == '\0') {
         JavaAssertions::setUserClassDefault(enable);
