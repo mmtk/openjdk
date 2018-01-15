@@ -39,6 +39,7 @@
 #include "gc/parallel/parallelArguments.hpp"
 #include "gc/cms/cmsArguments.hpp"
 #include "gc/g1/g1Arguments.hpp"
+#include "gc/mmtk/mmtkArguments.hpp"
 #endif
 
 GCArguments* GCArguments::_instance = NULL;
@@ -54,7 +55,7 @@ bool GCArguments::is_initialized() {
 
 bool GCArguments::gc_selected() {
 #if INCLUDE_ALL_GCS
-  return UseSerialGC || UseParallelGC || UseParallelOldGC || UseConcMarkSweepGC || UseG1GC;
+  return UseMMTk || UseSerialGC || UseParallelGC || UseParallelOldGC || UseConcMarkSweepGC || UseG1GC;
 #else
   return UseSerialGC;
 #endif // INCLUDE_ALL_GCS
@@ -142,7 +143,7 @@ jint GCArguments::initialize() {
 #else
     if(UseMMTk){
         printf("inside gcArguments.. got UseMMTk\n");
-        _instance = new ParallelArguments();
+        _instance = new MMTkArguments();
   }
   else if (UseParallelGC || UseParallelOldGC) {
     _instance = new ParallelArguments();
