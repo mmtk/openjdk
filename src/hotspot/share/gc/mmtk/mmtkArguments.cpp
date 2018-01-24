@@ -40,7 +40,7 @@ size_t MMTkArguments::conservative_max_heap_alignment() {
 
 void MMTkArguments::initialize_flags() {
   GCArguments::initialize_flags();
-  assert(UseParallelGC || UseParallelOldGC, "Error");
+  assert(UseMMTk || UseParallelGC || UseParallelOldGC, "Error");
   // Enable ParallelOld unless it was explicitly disabled (cmd line or rc file).
   if (FLAG_IS_DEFAULT(UseParallelOldGC)) {
     FLAG_SET_DEFAULT(UseParallelOldGC, true);
