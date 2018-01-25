@@ -511,7 +511,9 @@ void PSMarkSweep::mark_sweep_phase1(bool clear_all_softrefs) {
   ClassLoaderDataGraph::clear_claimed_marks();
 
   // General strong roots.
-  {
+  { ////////////////////////////
+    //Roots are to dircted from here.
+    ////////////////////////////////
     ParallelScavengeHeap::ParStrongRootsScope psrs;
     Universe::oops_do(mark_and_push_closure());
     JNIHandles::oops_do(mark_and_push_closure());   // Global (strong) JNI handles
