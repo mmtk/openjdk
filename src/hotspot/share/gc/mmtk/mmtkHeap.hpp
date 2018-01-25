@@ -54,10 +54,10 @@ class MMTkHeap : public ParallelScavengeHeap {
 //  static PSOldGen*   _old_gen;
 //
 //  // Sizing policy for entire heap
-//  static PSAdaptiveSizePolicy*       _size_policy;
-//  static PSGCAdaptivePolicyCounters* _gc_policy_counters;
+  static PSAdaptiveSizePolicy*       _size_policy;       //astar
+  static PSGCAdaptivePolicyCounters* _gc_policy_counters;//astar
 //
-//  GenerationSizer* _collector_policy;
+  GenerationSizer* _collector_policy;//astar
 //
 //  // Collection of generations that are adjacent in the
 //  // space reserved for the heap.
