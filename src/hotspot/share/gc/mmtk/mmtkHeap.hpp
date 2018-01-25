@@ -104,7 +104,7 @@ class MMTkHeap : public ParallelScavengeHeap {
 //    return "MMTk";
 //  }
 //
-//  virtual CollectorPolicy* collector_policy() const { return _collector_policy; }
+  virtual CollectorPolicy* collector_policy() const { return _collector_policy; }//astar
 //
 //  virtual GrowableArray<GCMemoryManager*> memory_managers();
 //  virtual GrowableArray<MemoryPool*> memory_pools();
@@ -112,9 +112,9 @@ class MMTkHeap : public ParallelScavengeHeap {
 //  static PSYoungGen* young_gen() { return _young_gen; }
 //  static PSOldGen* old_gen()     { return _old_gen; }
 //
-//  virtual PSAdaptiveSizePolicy* size_policy() { return _size_policy; }
+  virtual PSAdaptiveSizePolicy* size_policy() { return _size_policy; }//astar
 //
-//  static PSGCAdaptivePolicyCounters* gc_policy_counters() { return _gc_policy_counters; }
+  static PSGCAdaptivePolicyCounters* gc_policy_counters() { return _gc_policy_counters; }//astar
 //
 //  static MMTkHeap* heap();
 //
