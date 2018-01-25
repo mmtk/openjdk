@@ -512,7 +512,7 @@ void PSMarkSweep::mark_sweep_phase1(bool clear_all_softrefs) {
 
   // General strong roots.
   { ////////////////////////////
-    //Roots are to dircted from here.
+    //Roots are to be dircted from here.
     ////////////////////////////////
     ParallelScavengeHeap::ParStrongRootsScope psrs;
     Universe::oops_do(mark_and_push_closure());
