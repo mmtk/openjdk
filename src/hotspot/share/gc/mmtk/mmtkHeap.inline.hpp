@@ -51,4 +51,17 @@
 //         "incorrect test - result=%d, p=" PTR_FORMAT, result, p2i((void*)p));
 //  return result;
 //}
+
+HeapWord* MMTkHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size) {
+    printf("inside mmtkHeap.inline.hpp allocating from cHeap for now\n");
+    HeapWord* obj = thread->tlab().allocate(size);
+    if (obj != NULL) {
+      return obj;
+    }
+    // Otherwise...
+    return CollectedHeap::allocate_from_tlab_slow(klass, thread, size);
+}
+
+
+
 #endif // SHARE_VM_GC_MMTK_MMTKHEAP_INLINE_HPP

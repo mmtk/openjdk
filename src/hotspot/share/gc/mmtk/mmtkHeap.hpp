@@ -31,6 +31,7 @@
 #include "gc/parallel/psOldGen.hpp"
 #include "gc/parallel/psYoungGen.hpp"
 #include "gc/shared/collectedHeap.hpp"
+#include "gc/parallel/parallelScavengeHeap.hpp"
 #include "gc/shared/collectorPolicy.hpp"
 #include "gc/shared/gcPolicyCounters.hpp"
 #include "gc/shared/gcWhen.hpp"
@@ -89,6 +90,8 @@ class MMTkHeap : public ParallelScavengeHeap {
  public:
   MMTkHeap(GenerationSizer* policy) :
       ParallelScavengeHeap(policy) { }
+     
+  static HeapWord* allocate_from_tlab(Klass* klass, Thread* thread, size_t size);
 //
 //  // For use by VM operations
 //  enum CollectionType {

@@ -38,6 +38,7 @@
 #include "services/lowMemoryDetector.hpp"
 #include "utilities/align.hpp"
 #include "utilities/copy.hpp"
+#include "gc/mmtk/mmtkHeap.hpp"
 
 // Inline allocation implementations.
 
@@ -196,6 +197,12 @@ HeapWord* CollectedHeap::common_mem_allocate_init(Klass* klass, size_t size, TRA
 HeapWord* CollectedHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size) {
   assert(UseTLAB, "should use UseTLAB");
 
+  if(UseMMTk){
+      printf("inside collectedHeap.inline.hpp, use mmtk alloc\n");
+      return MMTkHeap::allocate_from_tlab(klass, thread, size);
+      printf("inside collectedHeap.inline.hpp, use mmtk alloc\n");
+  }
+  
   HeapWord* obj = thread->tlab().allocate(size);
   if (obj != NULL) {
     return obj;
