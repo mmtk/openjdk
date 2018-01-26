@@ -29,38 +29,6 @@
 #include "gc/parallel/psMarkSweep.hpp"
 #include "gc/parallel/psParallelCompact.inline.hpp"
 #include "gc/parallel/psScavenge.hpp"
-//
-//inline size_t MMTkHeap::total_invocations() {
-//  return UseParallelOldGC ? PSParallelCompact::total_invocations() :
-//    PSMarkSweep::total_invocations();
-//}
-//
-//inline bool MMTkHeap::should_alloc_in_eden(const size_t size) const {
-//  const size_t eden_size = young_gen()->eden_space()->capacity_in_words();
-//  return size < eden_size / 2;
-//}
-//
-//inline void MMTkHeap::invoke_scavenge() {
-//  PSScavenge::invoke();
-//}
-//
-//inline bool MMTkHeap::is_in_young(oop p) {
-//  // Assumes the the old gen address range is lower than that of the young gen.
-//  bool result = ((HeapWord*)p) >= young_gen()->reserved().start();
-//  assert(result == young_gen()->is_in_reserved(p),
-//         "incorrect test - result=%d, p=" PTR_FORMAT, result, p2i((void*)p));
-//  return result;
-//}
-
-HeapWord* MMTkHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size) {
-    printf("inside mmtkHeap.inline.hpp allocating from cHeap for now\n");
-    HeapWord* obj = thread->tlab().allocate(size);
-    if (obj != NULL) {
-      return obj;
-    }
-    // Otherwise...
-    return CollectedHeap::allocate_from_tlab_slow(klass, thread, size);
-}
 
 
 

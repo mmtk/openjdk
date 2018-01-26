@@ -198,9 +198,7 @@ HeapWord* CollectedHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t
   assert(UseTLAB, "should use UseTLAB");
 
   if(UseMMTk){
-      printf("inside collectedHeap.inline.hpp, use mmtk alloc\n");
       return MMTkHeap::allocate_from_tlab(klass, thread, size);
-      printf("inside collectedHeap.inline.hpp, use mmtk alloc\n");
   }
   
   HeapWord* obj = thread->tlab().allocate(size);
