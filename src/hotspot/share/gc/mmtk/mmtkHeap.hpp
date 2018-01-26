@@ -55,16 +55,12 @@ class MMTkHeap : public ParallelScavengeHeap {
       ParallelScavengeHeap(policy) { }
      
   static HeapWord* allocate_from_tlab(Klass* klass, Thread* thread, size_t size);
-  
+  //override
   virtual const char* name() const {
     return "MMTk";
   }
- 
-  virtual Name kind() const {
-    return CollectedHeap::MMTkHeap;
-  }
-
-
+//override
+  virtual jint initialize();
 };
 
 

@@ -56,6 +56,9 @@
 # include "stack_zero.hpp"
 #endif
 
+#include "../../../../mmtk/api/mmtk.h"
+
+
 class ThreadSafepointState;
 class ThreadsList;
 class ThreadsSMRSupport;
@@ -600,6 +603,9 @@ protected:
   size_t           _stack_size;
   uintptr_t        _self_raw_id;      // used by get_thread (mutable)
   int              _lgrp_id;
+  
+  // Support for mmtk allocation.
+  MMTk_Mutator _mmtk_mutator;
 
   volatile void** polling_page_addr() { return &_polling_page; }
 
@@ -618,7 +624,23 @@ protected:
   }
 
   uintptr_t self_raw_id()                    { return _self_raw_id; }
-  void      set_self_raw_id(uintptr_t value) { _self_raw_id = value; }
+  void      set_self_raw_id(uintptr_t value) { 
+      _self_raw_id = value;
+      
+      // For mmtk support
+      if(UseMMTk){
+        set_mmtk_mutator(value);
+      }
+  }
+  // For mmtk support
+  MMTk_Mutator mmtk_mutator() {
+      assert(UseMMTk, "should use UseMMTk");
+      return _mmtk_mutator;
+  }
+  void set_mmtk_mutator(size_t thread_id) {
+      assert(UseMMTk, "should use UseMMTk");
+      _mmtk_mutator = bind_mutator(thread_id);
+  }
 
   int     lgrp_id() const        { return _lgrp_id; }
   void    set_lgrp_id(int value) { _lgrp_id = value; }
