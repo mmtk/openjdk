@@ -55,14 +55,19 @@
 HeapWord* MMTkHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size) {
    
     // extern void* alloc(MMTk_Mutator mutator, size_t size, size_t align, ssize_t offset);
-     HeapWord* obj = (HeapWord*)  alloc(thread->mmtk_mutator(), size, 1, 0);
-     printf("inside mmtkHeap.cpp allocated from mmtk\n");
-    //HeapWord* obj = thread->tlab().allocate(size);
+    
+//    size_t obj_ptr = (size_t) alloc(thread->mmtk_mutator(), size, 1, 0);
+//     HeapWord* obj = NULL;
+//     obj = obj+ obj_ptr / (sizeof(HeapWord*));
+    void* obj_ptr = alloc(thread->mmtk_mutator(), size, 1, 0);
+    HeapWord* obj = (HeapWord*) obj_ptr;
+     
     if (obj != NULL) {
+       printf("inside mmtkHeap.cpp allocated from mmtk %x, %x, %d\n", obj, obj_ptr, size);
       return obj;
     }
     // Otherwise...
-    return (HeapWord*) alloc_slow(thread->mmtk_mutator(), size, 1, 0);
+    return  NULL;
 }
 
 
@@ -70,7 +75,7 @@ jint MMTkHeap::initialize() {
     jint res =  this->ParallelScavengeHeap::initialize();
     const size_t heap_size = collector_policy()->max_heap_byte_size();
     gc_init(heap_size);
-    printf("inside mmtkHeap.cpp after initialization\n");
+    printf("inside mmtkHeap.cpp after initialization with size %d\n", heap_size);
     return res;
     
 }
