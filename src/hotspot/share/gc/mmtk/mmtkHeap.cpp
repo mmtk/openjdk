@@ -51,7 +51,7 @@ HeapWord* MMTkHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size
     }
     // Otherwise...
     printf("inside mmtkHeap.cpp returned NULL\n");
-    return NULL;
+    return (HeapWord*) alloc_slow(thread->mmtk_mutator(), size*HeapWordSize, 1, 0);
 }
 
 
@@ -80,9 +80,9 @@ jint MMTkHeap::initialize() {
     
 }
 
-virtual HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) {
+HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) {
     
-    HeapWord* obj = (HeapWord*) alloc_slow(thread->mmtk_mutator(), size*HeapWordSize, 1, 0);
-    printf("inside mmtkHeap.cpp mem_allocating %x, %d\n", obj, size);
-    return obj;
+  
+    printf("inside mmtkHeap.cpp mem_allocating %d\n", size);
+    return NULL;
 }

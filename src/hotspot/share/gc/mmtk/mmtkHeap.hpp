@@ -43,7 +43,7 @@ class PSAdaptiveSizePolicy;
 class PSHeapSummary;
 
 class MMTkHeap : public CollectedHeap {
-  //  GenerationSizer* _collector_policy;
+    NoPolicy* _collector_policy;
 
  public:
      
@@ -97,7 +97,7 @@ class MMTkHeap : public CollectedHeap {
 
 
   // Return the CollectorPolicy for the heap
-  virtual CollectorPolicy* collector_policy() const {return NULL;}
+  virtual CollectorPolicy* collector_policy() const {return _collector_policy;}
 
   virtual GrowableArray<GCMemoryManager*> memory_managers() {
     GrowableArray<GCMemoryManager*> memory_managers(0);

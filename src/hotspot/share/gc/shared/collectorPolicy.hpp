@@ -274,4 +274,9 @@ class MarkSweepPolicy : public GenCollectorPolicy {
   void initialize_gc_policy_counters();
 };
 
+
+class NoPolicy : CollectorPolicy {
+    virtual void initialize_alignments() {}
+};
+
 #endif // SHARE_VM_GC_SHARED_COLLECTORPOLICY_HPP

@@ -92,5 +92,5 @@ void MMTkArguments::initialize_flags() {
 }
 
 CollectedHeap* MMTkArguments::create_heap() {
-  return create_heap_with_policy<MMTkHeap, GenerationSizer>();
+  return create_heap_with_policy<MMTkHeap, NoPolicy>();
 }
