@@ -34,13 +34,9 @@
 #include "utilities/growableArray.hpp"
 #include "utilities/ostream.hpp"
 
-class AdjoiningGenerations;
-class GCHeapSummary;
-class GCTaskManager;
-class MemoryManager;
+
+class GCMemoryManager;
 class MemoryPool;
-class PSAdaptiveSizePolicy;
-class PSHeapSummary;
 
 class MMTkHeap : public CollectedHeap {
     NoPolicy* _collector_policy;
@@ -65,12 +61,13 @@ class MMTkHeap : public CollectedHeap {
     return "MMTk";
   }
   
-  virtual size_t capacity() { return 0;}
-  virtual size_t used() { return 0;}
+  virtual size_t capacity() const { return 0;}
+  virtual size_t used() const { return 0;}
   
-  virtual bool is_maximal_no_gc() { return false;}
+  virtual bool is_maximal_no_gc() const { return false;}
 
-  virtual size_t max_capacity() { return 0;}
+  virtual size_t max_capacity() const { return 0;}
+  virtual bool is_in(const void* p) const { return false; }
   
    virtual bool supports_tlab_allocation() const { return false;}
 
@@ -116,11 +113,11 @@ class MMTkHeap : public CollectedHeap {
   // over live objects.
   virtual void safe_object_iterate(ObjectClosure* cl) {}
 
-  virtual HeapWord* block_start(const void* addr) {return NULL;}
+  virtual HeapWord* block_start(const void* addr) const {return NULL;}
 
-  virtual size_t block_size(const HeapWord* addr) { return 0; }
+  virtual size_t block_size(const HeapWord* addr) const { return 0; }
 
-  virtual bool block_is_obj(const HeapWord* addr) { return false; }
+  virtual bool block_is_obj(const HeapWord* addr) const { return false; }
 
   virtual jlong millis_since_last_gc() { return 0; }
 

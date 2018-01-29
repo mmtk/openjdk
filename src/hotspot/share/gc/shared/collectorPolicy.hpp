@@ -48,6 +48,7 @@
 // Forward declarations.
 class GenCollectorPolicy;
 class AdaptiveSizePolicy;
+class NoPolicy;
 #if INCLUDE_ALL_GCS
 class ConcurrentMarkSweepPolicy;
 class G1CollectorPolicy;
@@ -117,12 +118,14 @@ class CollectorPolicy : public CHeapObj<mtGC> {
   // Identification methods.
   virtual GenCollectorPolicy*           as_generation_policy()            { return NULL; }
   virtual MarkSweepPolicy*              as_mark_sweep_policy()            { return NULL; }
+  virtual NoPolicy*                     as_no_policy()                    { return NULL; }
 #if INCLUDE_ALL_GCS
   virtual ConcurrentMarkSweepPolicy*    as_concurrent_mark_sweep_policy() { return NULL; }
 #endif // INCLUDE_ALL_GCS
   // Note that these are not virtual.
   bool is_generation_policy()            { return as_generation_policy() != NULL; }
   bool is_mark_sweep_policy()            { return as_mark_sweep_policy() != NULL; }
+  bool is_no_policy()                     { return as_no_policy() != NULL; }
 #if INCLUDE_ALL_GCS
   bool is_concurrent_mark_sweep_policy() { return as_concurrent_mark_sweep_policy() != NULL; }
 #else  // INCLUDE_ALL_GCS
@@ -278,6 +281,11 @@ class MarkSweepPolicy : public GenCollectorPolicy {
 class NoPolicy : public CollectorPolicy {
 protected:
     virtual void initialize_alignments() {}
+public:
+    NoPolicy(){}
+    NoPolicy* as_no_policy() { return this; }
+    
+
 };
 
 #endif // SHARE_VM_GC_SHARED_COLLECTORPOLICY_HPP
