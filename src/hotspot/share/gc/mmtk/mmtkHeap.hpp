@@ -159,6 +159,7 @@ class MMTkHeap : public CollectedHeap {
   // Heap verification
   virtual void verify(VerifyOption option) {}
 
+  void post_initialize();
 
 };
 
