@@ -275,7 +275,8 @@ class MarkSweepPolicy : public GenCollectorPolicy {
 };
 
 
-class NoPolicy : CollectorPolicy {
+class NoPolicy : public CollectorPolicy {
+protected:
     virtual void initialize_alignments() {}
 };
 

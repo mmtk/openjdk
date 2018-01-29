@@ -47,7 +47,7 @@ class MMTkHeap : public CollectedHeap {
 
  public:
      
-  MMTkHeap() : CollectedHeap() { }
+  MMTkHeap(NoPolicy* policy) : CollectedHeap(), _collector_policy(policy) { }
      
   static HeapWord* allocate_from_tlab(Klass* klass, Thread* thread, size_t size);
  
@@ -72,23 +72,23 @@ class MMTkHeap : public CollectedHeap {
 
   virtual size_t max_capacity() { return 0;}
   
-   virtual bool supports_tlab_allocation() { return false;}
+   virtual bool supports_tlab_allocation() const { return false;}
 
   // The amount of space available for thread-local allocation buffers.
-  virtual size_t tlab_capacity(Thread *thr) {return 0;}
+  virtual size_t tlab_capacity(Thread *thr) const {return 0;}
 
   // The amount of used space for thread-local allocation buffers for the given thread.
-  virtual size_t tlab_used(Thread *thr) {return 0;}
+  virtual size_t tlab_used(Thread *thr) const {return 0;}
   
   
   
-  virtual bool can_elide_tlab_store_barriers() {return false;}
+  virtual bool can_elide_tlab_store_barriers() const {return false;}
 
 
   virtual bool can_elide_initializing_store_barrier(oop new_obj) {return false;}
   
   // mark to be thus strictly sequenced after the stores.
-  virtual bool card_mark_must_follow_store() {return false;}
+  virtual bool card_mark_must_follow_store() const {return false;}
 
   virtual void collect(GCCause::Cause cause) {}
 
@@ -120,7 +120,7 @@ class MMTkHeap : public CollectedHeap {
 
   virtual size_t block_size(const HeapWord* addr) { return 0; }
 
-  virtual bool block_is_obj(const HeapWord* addr) { return 0; }
+  virtual bool block_is_obj(const HeapWord* addr) { return false; }
 
   virtual jlong millis_since_last_gc() { return 0; }
 
@@ -135,19 +135,19 @@ class MMTkHeap : public CollectedHeap {
  public:
   
   // Print heap information on the given outputStream.
-  virtual void print_on(outputStream* st) {}
+  virtual void print_on(outputStream* st) const {}
 
 
   // Print all GC threads (other than the VM thread)
   // used by this heap.
-  virtual void print_gc_threads_on(outputStream* st) {}
+  virtual void print_gc_threads_on(outputStream* st) const {}
 
   // Iterator for all GC threads (other than VM thread)
-  virtual void gc_threads_do(ThreadClosure* tc) {}
+  virtual void gc_threads_do(ThreadClosure* tc) const {}
 
   // Print any relevant tracing info that flags imply.
   // Default implementation does nothing.
-  virtual void print_tracing_info() {}
+  virtual void print_tracing_info() const {}
 
 
   // An object is scavengable if its location may move during a scavenge.
