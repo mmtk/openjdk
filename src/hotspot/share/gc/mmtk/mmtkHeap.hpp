@@ -25,13 +25,7 @@
 #ifndef SHARE_VM_GC_MMTK_MMTKHEAP_HPP
 #define SHARE_VM_GC_MMTK_MMTKHEAP_HPP
 
-#include "gc/parallel/generationSizer.hpp"
-#include "gc/parallel/objectStartArray.hpp"
-#include "gc/parallel/psGCAdaptivePolicyCounters.hpp"
-#include "gc/parallel/psOldGen.hpp"
-#include "gc/parallel/psYoungGen.hpp"
 #include "gc/shared/collectedHeap.hpp"
-#include "gc/parallel/parallelScavengeHeap.hpp"
 #include "gc/shared/collectorPolicy.hpp"
 #include "gc/shared/gcPolicyCounters.hpp"
 #include "gc/shared/gcWhen.hpp"
@@ -48,18 +42,18 @@ class MemoryPool;
 class PSAdaptiveSizePolicy;
 class PSHeapSummary;
 
-class MMTkHeap : public ParallelScavengeHeap {
+class MMTkHeap : public CollectedHeap {
 
  public:
-  MMTkHeap(GenerationSizer* policy) :
-      ParallelScavengeHeap(policy) { }
+  MMTkHeap(GenerationSizer* policy) { }
      
   static HeapWord* allocate_from_tlab(Klass* klass, Thread* thread, size_t size);
-  //override
+   virtual Name kind() const {
+    return CollectedHeap::MMTkHeap;
+  }
   virtual const char* name() const {
     return "MMTk";
   }
-//override
   virtual jint initialize();
 };
 

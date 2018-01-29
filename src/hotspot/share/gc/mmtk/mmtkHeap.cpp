@@ -24,20 +24,7 @@
 
 #include "precompiled.hpp"
 #include "code/codeCache.hpp"
-#include "gc/parallel/adjoiningGenerations.hpp"
-#include "gc/parallel/adjoiningVirtualSpaces.hpp"
-#include "gc/parallel/cardTableExtension.hpp"
-#include "gc/parallel/gcTaskManager.hpp"
-#include "gc/parallel/generationSizer.hpp"
-#include "gc/parallel/objectStartArray.inline.hpp"
 #include "gc/mmtk/mmtkHeap.inline.hpp"
-#include "gc/parallel/psAdaptiveSizePolicy.hpp"
-#include "gc/parallel/psMarkSweep.hpp"
-#include "gc/parallel/psMemoryPool.hpp"
-#include "gc/parallel/psParallelCompact.inline.hpp"
-#include "gc/parallel/psPromotionManager.hpp"
-#include "gc/parallel/psScavenge.hpp"
-#include "gc/parallel/vmPSOperations.hpp"
 #include "gc/shared/gcHeapSummary.hpp"
 #include "gc/shared/gcLocker.inline.hpp"
 #include "gc/shared/gcWhen.hpp"
@@ -59,7 +46,7 @@ HeapWord* MMTkHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size
 //    size_t obj_ptr = (size_t) alloc(thread->mmtk_mutator(), size, 1, 0);
 //     HeapWord* obj = NULL;
 //     obj = obj+ obj_ptr / (sizeof(HeapWord*));
-    void* obj_ptr = alloc(thread->mmtk_mutator(), size*sizeof(HeapWord*), 1, 0);
+    void* obj_ptr = alloc(thread->mmtk_mutator(), size*HeapWordSize, 1, 0);
     HeapWord* obj = (HeapWord*) obj_ptr;
      
     if (obj != NULL) {
@@ -73,12 +60,13 @@ HeapWord* MMTkHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size
 
 
 jint MMTkHeap::initialize() {
-    jint res =  this->ParallelScavengeHeap::initialize();
-    const size_t heap_size = collector_policy()->max_heap_byte_size();
-   //size_t mmtk_heap_size = heap_size;
-    size_t mmtk_heap_size = 240;
+//    jint res =  this->ParallelScavengeHeap::initialize();
+//    const size_t heap_size = collector_policy()->max_heap_byte_size();
+//   size_t mmtk_heap_size = heap_size;
+    
+    size_t mmtk_heap_size = 1024*1024*500;
     gc_init(mmtk_heap_size);
     printf("inside mmtkHeap.cpp after initialization with size %d\n", mmtk_heap_size);
-    return res;
+    return JNI_OK;
     
 }

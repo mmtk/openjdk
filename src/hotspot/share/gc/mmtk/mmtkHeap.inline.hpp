@@ -26,9 +26,6 @@
 #define SHARE_VM_GC_MMTK_MMTKHEAP_INLINE_HPP
 
 #include "gc/mmtk/mmtkHeap.hpp"
-#include "gc/parallel/psMarkSweep.hpp"
-#include "gc/parallel/psParallelCompact.inline.hpp"
-#include "gc/parallel/psScavenge.hpp"
 
 
 
