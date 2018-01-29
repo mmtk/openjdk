@@ -69,6 +69,9 @@ jint MMTkHeap::initialize() {
                        generation_alignment(),
                        heap_rs.base(),
                        heap_rs.size());
+    
+      initialize_reserved_region((HeapWord*)heap_rs.base(), (HeapWord*)(heap_rs.base() + heap_rs.size()));
+
   
     size_t mmtk_heap_size = 1024*1024*500;
     gc_init(mmtk_heap_size);
