@@ -60,6 +60,16 @@ jint MMTkHeap::initialize() {
 //    const size_t heap_size = collector_policy()->max_heap_byte_size();
 //   size_t mmtk_heap_size = heap_size;
     CollectedHeap::pre_initialize();
+    
+    ReservedSpace heap_rs = Universe::reserve_heap(heap_size, _collector_policy->heap_alignment());
+
+    os::trace_page_sizes("Heap",
+                       _collector_policy->min_heap_byte_size(),
+                       heap_size,
+                       generation_alignment(),
+                       heap_rs.base(),
+                       heap_rs.size());
+  
     size_t mmtk_heap_size = 1024*1024*500;
     gc_init(mmtk_heap_size);
     printf("inside mmtkHeap.cpp after initialization with size %d\n", mmtk_heap_size);
