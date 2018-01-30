@@ -54,14 +54,20 @@ static const BasicType types[Interpreter::number_of_result_handlers] = {
 };
 
 void TemplateInterpreterGenerator::generate_all() {
+    
+    /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, generate_all starting.. \n");
   { CodeletMark cm(_masm, "slow signature handler");
+  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, codeletmark worked properly \n");
     AbstractInterpreter::_slow_signature_handler = generate_slow_signature_handler();
+    /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, generate slow signature handler worked properly \n");
   }
 
   { CodeletMark cm(_masm, "error exits");
     _unimplemented_bytecode    = generate_error_exit("unimplemented bytecode");
     _illegal_bytecode_sequence = generate_error_exit("illegal bytecode sequence - method not verified");
   }
+  
+  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, generate error exit worked properly \n");
 
 #ifndef PRODUCT
   if (TraceBytecodes) {
@@ -81,6 +87,8 @@ void TemplateInterpreterGenerator::generate_all() {
                  );
   }
 #endif // !PRODUCT
+  
+  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, crossed ifndef product. \n");
 
   { CodeletMark cm(_masm, "return entry points");
     const int index_size = sizeof(u2);
@@ -102,6 +110,7 @@ void TemplateInterpreterGenerator::generate_all() {
                    );
     }
   }
+  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, crossed return entry points. \n");
 
   { CodeletMark cm(_masm, "invoke return entry points");
     // These states are in order specified in TosState, except btos/ztos/ctos/stos are
@@ -119,6 +128,7 @@ void TemplateInterpreterGenerator::generate_all() {
       Interpreter::_invokedynamic_return_entry[i] = generate_return_entry_for(state, invokedynamic_length, sizeof(u4));
     }
   }
+  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, crossed invoke return entry points.. \n");
 
   { CodeletMark cm(_masm, "earlyret entry points");
     Interpreter::_earlyret_entry =
@@ -135,6 +145,8 @@ void TemplateInterpreterGenerator::generate_all() {
                  generate_earlyret_entry_for(vtos)
                  );
   }
+  
+  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, crossed earlyret entry points \n");
 
   { CodeletMark cm(_masm, "result handlers for native calls");
     // The various result converter stublets.
@@ -148,6 +160,7 @@ void TemplateInterpreterGenerator::generate_all() {
       }
     }
   }
+  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, crossed result handlers for native calls \n");
 
 
   { CodeletMark cm(_masm, "safepoint entry points");

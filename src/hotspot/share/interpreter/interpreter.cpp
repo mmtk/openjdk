@@ -114,6 +114,7 @@ CodeletMark::~CodeletMark() {
 
 void interpreter_init() {
   Interpreter::initialize();
+  /*Debug*/  if(UseMMTk) printf("inside interpreter.cpp, interpreter_initialize worked properly\n");
 #ifndef PRODUCT
   if (TraceBytecodes) BytecodeTracer::set_closure(BytecodeTracer::std_closure());
 #endif // PRODUCT

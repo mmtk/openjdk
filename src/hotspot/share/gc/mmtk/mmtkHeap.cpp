@@ -57,10 +57,11 @@ HeapWord* MMTkHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size
 
 jint MMTkHeap::initialize() {
     
-  //  CollectedHeap::pre_initialize();
+   CollectedHeap::pre_initialize();
     
     const size_t heap_size = collector_policy()->max_heap_byte_size();
    size_t mmtk_heap_size = heap_size;
+   /*forcefully*/ mmtk_heap_size = 2*1024*1024*1024 -1;
     
     gc_init(mmtk_heap_size);
     printf("inside mmtkHeap.cpp after initialization with size %d\n", mmtk_heap_size);
@@ -101,14 +102,22 @@ void MMTkHeap::post_initialize() {
    size_t MMTkHeap::tlab_used(Thread *thr) const { guarantee(false, "tlab_used not supported"); return 0;}
   
   
-  
-   bool MMTkHeap::can_elide_tlab_store_barriers() const {guarantee(false, "can elide tlab store barriers not supported"); return false;}
+   // Can a compiler initialize a new object without store barriers?
+  // This permission only extends from the creation of a new object
+  // via a TLAB up to the first subsequent safepoint. //However, we will not use tlab
+   bool MMTkHeap::can_elide_tlab_store_barriers() const {
+      // guarantee(false, "can elide tlab store barriers not supported"); 
+       return true;
+   }
 
 
    bool MMTkHeap::can_elide_initializing_store_barrier(oop new_obj) {guarantee(false, "can elide initializing store barrier not supported");return false;}
   
   // mark to be thus strictly sequenced after the stores.
-   bool MMTkHeap::card_mark_must_follow_store() const {guarantee(false, "card mark must follow store not supported");return false;}
+   bool MMTkHeap::card_mark_must_follow_store() const {
+       //guarantee(false, "card mark must follow store not supported");
+       return false;
+   }
 
    void MMTkHeap::collect(GCCause::Cause cause) {guarantee(false, "collect not supported");}
 
