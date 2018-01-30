@@ -71,7 +71,6 @@ jint MMTkHeap::initialize() {
 
 HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) {
     
-  
     printf("inside mmtkHeap.cpp mem_allocating %d\n", size);
     return NULL;
 }

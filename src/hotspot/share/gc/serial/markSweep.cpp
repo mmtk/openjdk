@@ -72,7 +72,7 @@ inline void MarkSweep::mark_object(oop obj) {
   }
 }
 
-template <class T> inline void MarkSweep::mark_and_push(T* p) {
+template <class T> inline void MarkSweep::mark_and_push(T* p) { //mmtkRoot probable root
   T heap_oop = oopDesc::load_heap_oop(p);
   if (!oopDesc::is_null(heap_oop)) {
     oop obj = oopDesc::decode_heap_oop_not_null(heap_oop);
@@ -147,7 +147,7 @@ void MarkSweep::follow_array_chunk(objArrayOop array, int index) {
   }
 }
 
-void MarkSweep::follow_stack() {
+void MarkSweep::follow_stack() {//mmtkRoots
   do {
     while (!_marking_stack.is_empty()) {
       oop obj = _marking_stack.pop();
@@ -166,7 +166,7 @@ MarkSweep::FollowStackClosure MarkSweep::follow_stack_closure;
 
 void MarkSweep::FollowStackClosure::do_void() { follow_stack(); }
 
-template <class T> inline void MarkSweep::follow_root(T* p) {
+template <class T> inline void MarkSweep::follow_root(T* p) {//mmtkRoots
   assert(!Universe::heap()->is_in_reserved(p),
          "roots shouldn't be things within the heap");
   T heap_oop = oopDesc::load_heap_oop(p);
@@ -180,8 +180,8 @@ template <class T> inline void MarkSweep::follow_root(T* p) {
   follow_stack();
 }
 
-void MarkSweep::FollowRootClosure::do_oop(oop* p)       { follow_root(p); }
-void MarkSweep::FollowRootClosure::do_oop(narrowOop* p) { follow_root(p); }
+void MarkSweep::FollowRootClosure::do_oop(oop* p)       { follow_root(p); }//mmtkRoots
+void MarkSweep::FollowRootClosure::do_oop(narrowOop* p) { follow_root(p); }//mmtkRoots
 
 void PreservedMark::adjust_pointer() {
   MarkSweep::adjust_pointer(&_obj);
