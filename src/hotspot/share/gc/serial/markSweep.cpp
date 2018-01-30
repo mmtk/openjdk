@@ -72,7 +72,7 @@ inline void MarkSweep::mark_object(oop obj) {
   }
 }
 
-template <class T> inline void MarkSweep::mark_and_push(T* p) {
+template <class T> inline void MarkSweep::mark_and_push(T* p) { //mmtkRoot probable root
   T heap_oop = oopDesc::load_heap_oop(p);
   if (!oopDesc::is_null(heap_oop)) {
     oop obj = oopDesc::decode_heap_oop_not_null(heap_oop);
