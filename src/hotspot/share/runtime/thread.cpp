@@ -3636,6 +3636,8 @@ void Threads::initialize_jsr292_core_classes(TRAPS) {
 }
 
 jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
+    
+    /*Debug*/ printf("inside thread.cpp, going to create_vm\n");
   extern void JDK_Version_init();
 
   // Preinitialize version info.
@@ -3655,6 +3657,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   // Initialize the os module
   os::init();
+  /*Debug*/ printf("inside thread.cpp, os::init worked properly \n");
 
   // Record VM creation timing statistics
   TraceVmCreationTime create_vm_timer;
@@ -3990,6 +3993,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
     ShouldNotReachHere();
   }
 
+  /*Debug*/ printf("inside thread.cpp, create_vm worked properly\n");
   return JNI_OK;
 }
 

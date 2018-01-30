@@ -736,6 +736,9 @@ jint universe_init() {
   }
 
   ResolvedMethodTable::create_table();
+  
+  
+  /*Debug*/printf("inside universe.cpp, universe_init worked properly\n");
 
   return JNI_OK;
 }

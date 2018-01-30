@@ -129,12 +129,15 @@ jint init_globals() {
   accessFlags_init();
   templateTable_init();
   InterfaceSupport_init();
+  /*Debug*/ printf("inside init.cpp, InterfaceSupportInit worked properly\n");
   SharedRuntime::generate_stubs();
   universe2_init();  // dependent on codeCache_init and stubRoutines_init1
   referenceProcessor_init();
   jni_handles_init();
 #if INCLUDE_VM_STRUCTS
+  /*Debug*/ printf("inside init.cpp, going to vmstructs_init\n");
   vmStructs_init();
+  /*Debug*/  printf("inside init.cpp, vm structs worked properly\n");
 #endif // INCLUDE_VM_STRUCTS
 
   vtableStubs_init();
@@ -166,6 +169,7 @@ jint init_globals() {
     CommandLineFlags::printFlags(tty, false, PrintFlagsRanges);
   }
 
+  /*Debug*/ printf("inside init.cpp, init_globals worked properly\n");
   return JNI_OK;
 }
 
