@@ -40,7 +40,9 @@ size_t MMTkArguments::conservative_max_heap_alignment() {
 
 void MMTkArguments::initialize_flags() {
   GCArguments::initialize_flags();
-  assert(UseMMTk , "Error");
+  assert(UseMMTk , "Error, should UseMMTk");
+  FLAG_SET_DEFAULT(UseTLAB, false);
+  
 }
 
 CollectedHeap* MMTkArguments::create_heap() {
