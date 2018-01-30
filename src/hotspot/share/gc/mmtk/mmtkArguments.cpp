@@ -40,55 +40,7 @@ size_t MMTkArguments::conservative_max_heap_alignment() {
 
 void MMTkArguments::initialize_flags() {
   GCArguments::initialize_flags();
-  assert(UseMMTk || UseParallelGC || UseParallelOldGC, "Error");
-  // Enable ParallelOld unless it was explicitly disabled (cmd line or rc file).
-  if (FLAG_IS_DEFAULT(UseParallelOldGC)) {
-    FLAG_SET_DEFAULT(UseParallelOldGC, true);
-  }
-  FLAG_SET_DEFAULT(UseParallelGC, true);
-
-  // If no heap maximum was requested explicitly, use some reasonable fraction
-  // of the physical memory, up to a maximum of 1GB.
-  FLAG_SET_DEFAULT(ParallelGCThreads,
-                   Abstract_VM_Version::parallel_worker_threads());
-  if (ParallelGCThreads == 0) {
-    jio_fprintf(defaultStream::error_stream(),
-        "The Parallel GC can not be combined with -XX:ParallelGCThreads=0\n");
-    vm_exit(1);
-  }
-
-  if (UseAdaptiveSizePolicy) {
-    // We don't want to limit adaptive heap sizing's freedom to adjust the heap
-    // unless the user actually sets these flags.
-    if (FLAG_IS_DEFAULT(MinHeapFreeRatio)) {
-      FLAG_SET_DEFAULT(MinHeapFreeRatio, 0);
-    }
-    if (FLAG_IS_DEFAULT(MaxHeapFreeRatio)) {
-      FLAG_SET_DEFAULT(MaxHeapFreeRatio, 100);
-    }
-  }
-
-  // If InitialSurvivorRatio or MinSurvivorRatio were not specified, but the
-  // SurvivorRatio has been set, reset their default values to SurvivorRatio +
-  // 2.  By doing this we make SurvivorRatio also work for Parallel Scavenger.
-  // See CR 6362902 for details.
-  if (!FLAG_IS_DEFAULT(SurvivorRatio)) {
-    if (FLAG_IS_DEFAULT(InitialSurvivorRatio)) {
-       FLAG_SET_DEFAULT(InitialSurvivorRatio, SurvivorRatio + 2);
-    }
-    if (FLAG_IS_DEFAULT(MinSurvivorRatio)) {
-      FLAG_SET_DEFAULT(MinSurvivorRatio, SurvivorRatio + 2);
-    }
-  }
-
-  if (UseParallelOldGC) {
-    // Par compact uses lower default values since they are treated as
-    // minimums.  These are different defaults because of the different
-    // interpretation and are not ergonomically set.
-    if (FLAG_IS_DEFAULT(MarkSweepDeadRatio)) {
-      FLAG_SET_DEFAULT(MarkSweepDeadRatio, 1);
-    }
-  }
+  assert(UseMMTk , "Error");
 }
 
 CollectedHeap* MMTkArguments::create_heap() {
