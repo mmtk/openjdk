@@ -53,7 +53,6 @@ class MMTkHeap : public CollectedHeap {
   
   
   
-  ///Methods implemented in the header-----------------------------------------
   virtual Name kind() const {
     return CollectedHeap::MMTkHeap;
   }
@@ -61,102 +60,93 @@ class MMTkHeap : public CollectedHeap {
     return "MMTk";
   }
   
-  virtual size_t capacity() const { guarantee(false, "capacity not supported"); return 0;}
-  virtual size_t used() const { guarantee(false, "used not supported"); return 0;}
+  virtual size_t capacity() const; 
+  virtual size_t used() const;
   
-  virtual bool is_maximal_no_gc() const { guarantee(false, "is_maximal_no_gc  not supported"); return false;}
+  virtual bool is_maximal_no_gc() const; 
 
-  virtual size_t max_capacity() const {guarantee(false, "max capacity not supported"); return 0;}
-  virtual bool is_in(const void* p) const {guarantee(false, "is in not supported"); return false; }
+  virtual size_t max_capacity() const; 
+  virtual bool is_in(const void* p) const; 
   
-   virtual bool supports_tlab_allocation() const {guarantee(false, "supports-tlab-allocation buffers not supported"); return false;}
+   virtual bool supports_tlab_allocation() const; 
 
   // The amount of space available for thread-local allocation buffers.
-  virtual size_t tlab_capacity(Thread *thr) const {guarantee(false, "tlab_capacity not supported");return 0;}
+  virtual size_t tlab_capacity(Thread *thr) const; 
 
   // The amount of used space for thread-local allocation buffers for the given thread.
-  virtual size_t tlab_used(Thread *thr) const { guarantee(false, "tlab_used not supported"); return 0;}
+  virtual size_t tlab_used(Thread *thr) const; 
   
   
   
-  virtual bool can_elide_tlab_store_barriers() const {guarantee(false, "tcan elide tlab store barriers not supported"); return false;}
+  virtual bool can_elide_tlab_store_barriers() const; 
 
 
-  virtual bool can_elide_initializing_store_barrier(oop new_obj) {guarantee(false, "can elide initializing store barrier not supported");return false;}
+  virtual bool can_elide_initializing_store_barrier(oop new_obj); 
   
   // mark to be thus strictly sequenced after the stores.
-  virtual bool card_mark_must_follow_store() const {guarantee(false, "tcard mark must follow store not supported");return false;}
+  virtual bool card_mark_must_follow_store() const; 
 
-  virtual void collect(GCCause::Cause cause) {guarantee(false, "collect not supported");}
+  virtual void collect(GCCause::Cause cause); 
 
   // Perform a full collection
-  virtual void do_full_collection(bool clear_all_soft_refs) {guarantee(false, "do full collection not supported");}
+  virtual void do_full_collection(bool clear_all_soft_refs); 
 
 
   // Return the CollectorPolicy for the heap
-  virtual CollectorPolicy* collector_policy() const {return _collector_policy;}
+  virtual CollectorPolicy* collector_policy() const ;
 
-  virtual GrowableArray<GCMemoryManager*> memory_managers() {
-      guarantee(false, "memory managers not supported");
-    GrowableArray<GCMemoryManager*> memory_managers(0);
-     return memory_managers;
-  
-  }
-  virtual GrowableArray<MemoryPool*> memory_pools() {
-      guarantee(false, "memory pools not supported");
-      GrowableArray<MemoryPool*> memory_pools(0);
-    return memory_pools;
-  }
+  virtual GrowableArray<GCMemoryManager*> memory_managers() ;
+  virtual GrowableArray<MemoryPool*> memory_pools(); 
 
   // Iterate over all objects, calling "cl.do_object" on each.
-  virtual void object_iterate(ObjectClosure* cl) { guarantee(false, "object iterate not supported");}
+  virtual void object_iterate(ObjectClosure* cl); 
 
   // Similar to object_iterate() except iterates only
   // over live objects.
-  virtual void safe_object_iterate(ObjectClosure* cl) { guarantee(false, "safe object iterate not supported");}
+  virtual void safe_object_iterate(ObjectClosure* cl) ;
 
-  virtual HeapWord* block_start(const void* addr) const {guarantee(false, "block start not supported"); return NULL;}
+  virtual HeapWord* block_start(const void* addr) const ;
 
-  virtual size_t block_size(const HeapWord* addr) const { guarantee(false, "block size not supported"); return 0; }
+  virtual size_t block_size(const HeapWord* addr) const ;
 
-  virtual bool block_is_obj(const HeapWord* addr) const { guarantee(false, "block is obj not supported"); return false; }
+  virtual bool block_is_obj(const HeapWord* addr) const; 
 
-  virtual jlong millis_since_last_gc() {guarantee(false, "time since last gc not supported"); return 0; }
+  virtual jlong millis_since_last_gc() ;
 
 
-  virtual void prepare_for_verify() {guarantee(false, "prepare for verify not supported");}
+  virtual void prepare_for_verify() ;
 
 
  private:
 
-  virtual void initialize_serviceability() {guarantee(false, "initialize serviceability not supported");}
+  virtual void initialize_serviceability() ;
 
  public:
   
   // Print heap information on the given outputStream.
-  virtual void print_on(outputStream* st) const {guarantee(false, "print on not supported");}
+  virtual void print_on(outputStream* st) const ;
 
 
   // Print all GC threads (other than the VM thread)
   // used by this heap.
-  virtual void print_gc_threads_on(outputStream* st) const {guarantee(false, "print gc threads on not supported");}
+  virtual void print_gc_threads_on(outputStream* st) const; 
 
   // Iterator for all GC threads (other than VM thread)
-  virtual void gc_threads_do(ThreadClosure* tc) const {guarantee(false, "gc threads do not supported");}
+  virtual void gc_threads_do(ThreadClosure* tc) const; 
 
   // Print any relevant tracing info that flags imply.
   // Default implementation does nothing.
-  virtual void print_tracing_info() const {guarantee(false, "paint tracing info not supported");}
+  virtual void print_tracing_info() const ;
 
 
   // An object is scavengable if its location may move during a scavenge.
   // (A scavenge is a GC which is not a full GC.)
-  virtual bool is_scavengable(oop obj) {return false;}
+  virtual bool is_scavengable(oop obj);
   // Registering and unregistering an nmethod (compiled code) with the heap.
   // Override with specific mechanism for each specialized heap type.
 
   // Heap verification
-  virtual void verify(VerifyOption option) {guarantee(false, "tverify not supported");}
+  virtual void verify(VerifyOption option);
 
   void post_initialize();
 
