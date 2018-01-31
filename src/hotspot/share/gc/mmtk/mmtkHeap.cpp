@@ -161,64 +161,88 @@ void MMTkHeap::post_initialize() {
    // Can a compiler initialize a new object without store barriers?
   // This permission only extends from the creation of a new object
   // via a TLAB up to the first subsequent safepoint. //However, we will not use tlab
-   bool MMTkHeap::can_elide_tlab_store_barriers() const {
+   bool MMTkHeap::can_elide_tlab_store_barriers() const {  //OK
       // guarantee(false, "can elide tlab store barriers not supported"); 
        return true;
    }
 
 
-   bool MMTkHeap::can_elide_initializing_store_barrier(oop new_obj) {
+   bool MMTkHeap::can_elide_initializing_store_barrier(oop new_obj) { //OK
        guarantee(false, "can elide initializing store barrier not supported");
        return false;
    }
   
   // mark to be thus strictly sequenced after the stores.
-   bool MMTkHeap::card_mark_must_follow_store() const {
+   bool MMTkHeap::card_mark_must_follow_store() const { //OK
        //guarantee(false, "card mark must follow store not supported");
        return false;
    }
 
-   void MMTkHeap::collect(GCCause::Cause cause) {guarantee(false, "collect not supported");}
+   void MMTkHeap::collect(GCCause::Cause cause) {//later when gc is implemented in rust
+       guarantee(false, "collect not supported");
+   }
 
   // Perform a full collection
-   void MMTkHeap::do_full_collection(bool clear_all_soft_refs) {guarantee(false, "do full collection not supported");}
+   void MMTkHeap::do_full_collection(bool clear_all_soft_refs) {//later when gc is implemented in rust
+       guarantee(false, "do full collection not supported");
+   }
 
 
   // Return the CollectorPolicy for the heap
-   CollectorPolicy* MMTkHeap::collector_policy() const {return _collector_policy;}
+   CollectorPolicy* MMTkHeap::collector_policy() const {return _collector_policy;}//OK
 
-   GrowableArray<GCMemoryManager*> MMTkHeap::memory_managers() {
-      guarantee(false, "memory managers not supported");
-    GrowableArray<GCMemoryManager*> memory_managers(0);
+   GrowableArray<GCMemoryManager*> MMTkHeap::memory_managers() {//may cause error
+     guarantee(false, "memory managers not supported");
+     GrowableArray<GCMemoryManager*> memory_managers(0);
      return memory_managers;
   
   }
-   GrowableArray<MemoryPool*> MMTkHeap::memory_pools() {
+   GrowableArray<MemoryPool*> MMTkHeap::memory_pools() {//may cause error
       guarantee(false, "memory pools not supported");
       GrowableArray<MemoryPool*> memory_pools(0);
     return memory_pools;
   }
 
   // Iterate over all objects, calling "cl.do_object" on each.
-   void MMTkHeap::object_iterate(ObjectClosure* cl) { guarantee(false, "object iterate not supported");}
+   void MMTkHeap::object_iterate(ObjectClosure* cl) { //No need to implement.Traced whole path.Only other heaps call it.
+       guarantee(false, "object iterate not supported");
+   }
 
   // Similar to object_iterate() except iterates only
   // over live objects.
-   void MMTkHeap::safe_object_iterate(ObjectClosure* cl) { guarantee(false, "safe object iterate not supported");}
+   void MMTkHeap::safe_object_iterate(ObjectClosure* cl) { //not sure..many dependencies from vm
+       guarantee(false, "safe object iterate not supported");
+   }
 
-   HeapWord* MMTkHeap::block_start(const void* addr) const {guarantee(false, "block start not supported"); return NULL;}
+   HeapWord* MMTkHeap::block_start(const void* addr) const {//OK
+       guarantee(false, "block start not supported"); 
+       return NULL;
+   }
 
-   size_t MMTkHeap::block_size(const HeapWord* addr) const { guarantee(false, "block size not supported"); return 0; }
+   size_t MMTkHeap::block_size(const HeapWord* addr) const { //OK
+       guarantee(false, "block size not supported"); 
+       return 0; 
+   }
 
-   bool MMTkHeap::block_is_obj(const HeapWord* addr) const { guarantee(false, "block is obj not supported"); return false; }
+   bool MMTkHeap::block_is_obj(const HeapWord* addr) const { //OK
+       guarantee(false, "block is obj not supported"); 
+   return false; 
+   }
 
-   jlong MMTkHeap::millis_since_last_gc() {guarantee(false, "time since last gc not supported"); return 0; }
+   jlong MMTkHeap::millis_since_last_gc() {//later when gc is implemented in rust
+       guarantee(false, "time since last gc not supported"); 
+       return 0; 
+   }
 
 
-   void MMTkHeap::prepare_for_verify() {guarantee(false, "prepare for verify not supported");}
+   void MMTkHeap::prepare_for_verify() {
+       guarantee(false, "prepare for verify not supported");
+   }
 
 
-   void MMTkHeap::initialize_serviceability() {guarantee(false, "initialize serviceability not supported"); }
+   void MMTkHeap::initialize_serviceability() {//OK
+       guarantee(false, "initialize serviceability not supported"); 
+   }
   
   // Print heap information on the given outputStream.
    void MMTkHeap::print_on(outputStream* st) const {guarantee(false, "print on not supported");}
