@@ -535,7 +535,7 @@ void PSMarkSweep::mark_sweep_phase1(bool clear_all_softrefs) {
   }
 
   // Flush marking stack.
-  follow_stack();  // Empty marking stack.
+  follow_stack();  // Empty marking stack.  //mmtkroot path trace 1
 
   // Process reference objects found during marking
   {
