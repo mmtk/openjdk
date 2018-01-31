@@ -125,7 +125,7 @@ void MMTkHeap::post_initialize() {
    }
    
    bool MMTkHeap::is_in(const void* p) const {
-       //used in collected heap jvmruntime and many more.........
+       //used in collected heap , jvmruntime and many more.........
        
        // Returns "TRUE" iff "p" points into the committed areas of the heap.
        //we need starting and endinf address of the heap
