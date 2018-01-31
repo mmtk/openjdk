@@ -38,6 +38,16 @@
 #include "utilities/vmError.hpp"
 #include "../../../../../mmtk/api/mmtk.h"
 
+/*
+needed support from rust
+heap capacity
+used bytes
+starting heap address
+ending heap address
+last gc time
+object iterator??!!
+*/
+
 
 HeapWord* MMTkHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size) {
    
