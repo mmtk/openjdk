@@ -53,7 +53,7 @@ class MMTkHeap : public CollectedHeap {
   
   
   
-  virtual Name kind() const {
+  virtual Name kind() const {   
     return CollectedHeap::MMTkHeap;
   }
   virtual const char* name() const {

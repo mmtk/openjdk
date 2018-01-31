@@ -85,15 +85,62 @@ void MMTkHeap::post_initialize() {
 
 ////Previously pure abstract methods--
 
- size_t MMTkHeap::capacity() const { guarantee(false, "capacity not supported"); return 0;}
-   size_t MMTkHeap::used() const { guarantee(false, "used not supported"); return 0;}
+   size_t MMTkHeap::capacity() const { 
+       //has to be implemented. used in universe.cpp
+       guarantee(false, "capacity not supported"); 
+       return 0;
+   }
+ 
+ 
+ 
+   size_t MMTkHeap::used() const { 
+       //has to be implemented. used in universe.cpp
+       //in ps : young_gen()->used_in_bytes() + old_gen()->used_in_bytes()
+       guarantee(false, "used not supported"); 
+       return 0;
+   }
   
-   bool MMTkHeap::is_maximal_no_gc() const { guarantee(false, "is_maximal_no_gc  not supported"); return false;}
+   bool MMTkHeap::is_maximal_no_gc() const { 
+       //has to be implemented. used in collectorpolicy.cpp in shared
+       
+       // Return "true" if the part of the heap that allocates Java
+       // objects has reached the maximal committed limit that it can
+       // reach, without a garbage collection.
+       
+       //can be implemented like if(used()>= capacity()-X){}
+       guarantee(false, "is_maximal_no_gc  not supported"); 
+       return false;
+   }
 
-   size_t MMTkHeap::max_capacity() const {guarantee(false, "max capacity not supported"); return 0;}
-   bool MMTkHeap::is_in(const void* p) const {guarantee(false, "is in not supported"); return false; }
+   size_t MMTkHeap::max_capacity() const {
+       //used by jvm
+       
+       // Support for java.lang.Runtime.maxMemory():  return the maximum amount of
+       // memory that the vm could make available for storing 'normal' java objects.
+       // This is based on the reserved address space, but should not include space
+       // that the vm uses internally for bookkeeping or temporary storage
+       // (e.g., in the case of the young gen, one of the survivor spaces).
+       guarantee(false, "max capacity not supported"); 
+       return 0;
+   }
+   
+   bool MMTkHeap::is_in(const void* p) const {
+       //used in collected heap jvmruntime and many more.........
+       
+       // Returns "TRUE" iff "p" points into the committed areas of the heap.
+       //we need starting and endinf address of the heap
+       
+       // in ps : char* const cp = (char*)p;
+       //return cp >= committed_low_addr() && cp < committed_high_addr();
+       
+       guarantee(false, "is in not supported"); 
+       return false; 
+   }
   
-    bool MMTkHeap::supports_tlab_allocation() const {guarantee(false, "supports-tlab-allocation buffers not supported"); return false;}
+    bool MMTkHeap::supports_tlab_allocation() const {
+        guarantee(false, "supports-tlab-allocation buffers not supported"); 
+        return false;
+    }
 
   // The amount of space available for thread-local allocation buffers.
    size_t MMTkHeap::tlab_capacity(Thread *thr) const {guarantee(false, "tlab_capacity not supported");return 0;}
