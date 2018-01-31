@@ -138,15 +138,24 @@ void MMTkHeap::post_initialize() {
    }
   
     bool MMTkHeap::supports_tlab_allocation() const {
+        //returning false is good enough...used in universe.cpp
         guarantee(false, "supports-tlab-allocation buffers not supported"); 
         return false;
     }
 
   // The amount of space available for thread-local allocation buffers.
-   size_t MMTkHeap::tlab_capacity(Thread *thr) const {guarantee(false, "tlab_capacity not supported");return 0;}
+   size_t MMTkHeap::tlab_capacity(Thread *thr) const {
+       //no need to further implement but we need UseTLAB=False
+       guarantee(false, "tlab_capacity not supported");
+       return 0;
+   }
 
   // The amount of used space for thread-local allocation buffers for the given thread.
-   size_t MMTkHeap::tlab_used(Thread *thr) const { guarantee(false, "tlab_used not supported"); return 0;}
+   size_t MMTkHeap::tlab_used(Thread *thr) const { 
+       //no need to further implement but we need UseTLAB=False
+       guarantee(false, "tlab_used not supported"); 
+       return 0;
+   }
   
   
    // Can a compiler initialize a new object without store barriers?
@@ -158,7 +167,10 @@ void MMTkHeap::post_initialize() {
    }
 
 
-   bool MMTkHeap::can_elide_initializing_store_barrier(oop new_obj) {guarantee(false, "can elide initializing store barrier not supported");return false;}
+   bool MMTkHeap::can_elide_initializing_store_barrier(oop new_obj) {
+       guarantee(false, "can elide initializing store barrier not supported");
+       return false;
+   }
   
   // mark to be thus strictly sequenced after the stores.
    bool MMTkHeap::card_mark_must_follow_store() const {
