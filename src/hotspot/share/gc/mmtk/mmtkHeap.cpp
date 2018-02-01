@@ -60,10 +60,29 @@ jint MMTkHeap::initialize() {
    CollectedHeap::pre_initialize();
     
     const size_t heap_size = collector_policy()->max_heap_byte_size();
+    printf("policy max heap size %d, min heap size %d\n", heap_size, collector_policy()->min_heap_byte_size());
    size_t mmtk_heap_size = heap_size;
-   /*forcefully*/ mmtk_heap_size = 2*1024*1024*1024 -1;
+   /*forcefully*/ //mmtk_heap_size = (1<<31) -1;
     
     gc_init(mmtk_heap_size);
+    
+    ReservedSpace heap_rs = Universe::reserve_heap(mmtk_heap_size, _collector_policy->heap_alignment());
+    
+    printf("inside mmtkHeap.cpp.. reserved base %x size %u \n", heap_rs.base(), heap_rs.size());
+
+  os::trace_page_sizes("Heap",
+                       _collector_policy->min_heap_byte_size(),
+                       mmtk_heap_size,
+                       collector_policy()->space_alignment(),
+                       heap_rs.base(),
+                       heap_rs.size());
+
+  initialize_reserved_region((HeapWord*)heap_rs.base(), (HeapWord*)(heap_rs.base() + heap_rs.size()));
+
+  CardTableExtension* const barrier_set = new CardTableExtension(reserved_region());
+  barrier_set->initialize();
+  set_barrier_set(barrier_set);
+    
     printf("inside mmtkHeap.cpp after initialization with size %d\n", mmtk_heap_size);
     return JNI_OK;
     
@@ -71,8 +90,17 @@ jint MMTkHeap::initialize() {
 
 HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) {
     
-    printf("inside mmtkHeap.cpp mem_allocating %d\n", size);
-    return NULL;
+    printf("inside mmtkHeap.cpp mem_allocating size %d \n", size);
+    void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0);
+    HeapWord* obj = (HeapWord*) obj_ptr;
+     
+    if (obj != NULL) {
+       printf("inside mmtkHeap.cpp allocated from mmtk %x, %x, %d\n", obj, obj_ptr, size);
+      return obj;
+    }
+    // Otherwise...
+    printf("inside mmtkHeap.cpp returned NULL\n");
+    return (HeapWord*) alloc_slow(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0);
 }
 
 

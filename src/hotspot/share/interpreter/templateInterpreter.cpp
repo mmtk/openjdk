@@ -41,19 +41,14 @@ void TemplateInterpreter::initialize() {
   // assertions
   assert((int)Bytecodes::number_of_codes <= (int)DispatchTable::length,
          "dispatch table too small");
-  
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, assert worked properly\n");
 
   AbstractInterpreter::initialize();
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, AbstractInterpreter::initialize worked properly\n");
 
   TemplateTable::initialize();
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, TemplateTable::initialize worked properly\n");
 
   // generate interpreter
   { ResourceMark rm;
     TraceTime timer("Interpreter generation", TRACETIME_LOG(Info, startuptime));
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, TraceTime timer worked properly\n");
     int code_size = InterpreterCodeSize;
     NOT_PRODUCT(code_size *= 4;)  // debug uses extra interpreter code space
     _code = new StubQueue(new InterpreterCodeletInterface, code_size, NULL,
@@ -96,7 +91,7 @@ EntryPoint::EntryPoint() {
 
 
 EntryPoint::EntryPoint(address bentry, address zentry, address centry, address sentry, address aentry, address ientry, address lentry, address fentry, address dentry, address ventry) {
-  assert(number_of_states == 10, "check the code below");
+    assert(number_of_states == 10, "check the code below");
   _entry[btos] = bentry;
   _entry[ztos] = zentry;
   _entry[ctos] = centry;

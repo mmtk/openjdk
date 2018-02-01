@@ -872,6 +872,8 @@ ReservedSpace Universe::reserve_heap(size_t heap_size, size_t alignment) {
       || use_large_pages, "Wrong alignment to use large pages");
 
   // Now create the space.
+  printf("inside universe.cpp creating the space with params total size %u, alignment %u, use_large %d, AllocateHeapAt %s \n",
+          total_reserved, alignment, use_large_pages, AllocateHeapAt);
   ReservedHeapSpace total_rs(total_reserved, alignment, use_large_pages, AllocateHeapAt);
 
   if (total_rs.is_reserved()) {

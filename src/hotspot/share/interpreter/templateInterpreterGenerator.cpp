@@ -55,11 +55,8 @@ static const BasicType types[Interpreter::number_of_result_handlers] = {
 
 void TemplateInterpreterGenerator::generate_all() {
     
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, generate_all starting.. \n");
   { CodeletMark cm(_masm, "slow signature handler");
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, codeletmark worked properly \n");
     AbstractInterpreter::_slow_signature_handler = generate_slow_signature_handler();
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, generate slow signature handler worked properly \n");
   }
 
   { CodeletMark cm(_masm, "error exits");
@@ -67,7 +64,6 @@ void TemplateInterpreterGenerator::generate_all() {
     _illegal_bytecode_sequence = generate_error_exit("illegal bytecode sequence - method not verified");
   }
   
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, generate error exit worked properly \n");
 
 #ifndef PRODUCT
   if (TraceBytecodes) {
@@ -88,7 +84,6 @@ void TemplateInterpreterGenerator::generate_all() {
   }
 #endif // !PRODUCT
   
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, crossed ifndef product. \n");
 
   { CodeletMark cm(_masm, "return entry points");
     const int index_size = sizeof(u2);
@@ -110,7 +105,6 @@ void TemplateInterpreterGenerator::generate_all() {
                    );
     }
   }
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, crossed return entry points. \n");
 
   { CodeletMark cm(_masm, "invoke return entry points");
     // These states are in order specified in TosState, except btos/ztos/ctos/stos are
@@ -128,7 +122,6 @@ void TemplateInterpreterGenerator::generate_all() {
       Interpreter::_invokedynamic_return_entry[i] = generate_return_entry_for(state, invokedynamic_length, sizeof(u4));
     }
   }
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, crossed invoke return entry points.. \n");
 
   { CodeletMark cm(_masm, "earlyret entry points");
     Interpreter::_earlyret_entry =
@@ -145,8 +138,7 @@ void TemplateInterpreterGenerator::generate_all() {
                  generate_earlyret_entry_for(vtos)
                  );
   }
-  
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, crossed earlyret entry points \n");
+
 
   { CodeletMark cm(_masm, "result handlers for native calls");
     // The various result converter stublets.
@@ -160,7 +152,6 @@ void TemplateInterpreterGenerator::generate_all() {
       }
     }
   }
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, crossed result handlers for native calls \n");
 
 
   { CodeletMark cm(_masm, "safepoint entry points");
@@ -192,8 +183,6 @@ void TemplateInterpreterGenerator::generate_all() {
     Interpreter::_throw_NullPointerException_entry           = generate_exception_handler("java/lang/NullPointerException"          , NULL       );
     Interpreter::_throw_StackOverflowError_entry             = generate_StackOverflowError_handler();
   }
-
-
 
 #define method_entry(kind)                                              \
   { CodeletMark cm(_masm, "method entry point (kind = " #kind ")"); \
@@ -238,21 +227,28 @@ void TemplateInterpreterGenerator::generate_all() {
   method_entry(java_lang_Float_floatToRawIntBits);
   method_entry(java_lang_Double_longBitsToDouble);
   method_entry(java_lang_Double_doubleToRawLongBits);
+  
+  /*Debug*/ // if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, before undef method_entry \n");
 
 #undef method_entry
 
   // Bytecodes
   set_entry_points_for_all_bytes();
+   /*Debug*///  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, set entry points worked \n");
 
   // installation of code in other places in the runtime
   // (ExcutableCodeManager calls not needed to copy the entries)
   set_safepoints_for_all_bytes();
+   /*Debug*/ // if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, set safe points worked \n");
 
   { CodeletMark cm(_masm, "deoptimization entry points");
     Interpreter::_deopt_entry[0] = EntryPoint();
+     /*Debug*/ // if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, Entry point worked \n");
     Interpreter::_deopt_entry[0].set_entry(vtos, generate_deopt_entry_for(vtos, 0));
+     /*Debug*/ // if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, set entry worked \n");
     for (int i = 1; i < Interpreter::number_of_deopt_entries; i++) {
       address deopt_itos = generate_deopt_entry_for(itos, i);
+       /*Debug*/ // if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, address worked \n");
       Interpreter::_deopt_entry[i] =
         EntryPoint(
                    deopt_itos, /* btos */
@@ -267,9 +263,13 @@ void TemplateInterpreterGenerator::generate_all() {
                    generate_deopt_entry_for(vtos, i)
                    );
     }
+    /*Debug*/ // if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, crossed deoptimization entry points\n");
     address return_continuation = Interpreter::_normal_table.entry(Bytecodes::_return).entry(vtos);
+    /*Debug*///  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, Interpreter::_normal_table.entry worked \n");
     vmassert(return_continuation != NULL, "return entry not generated yet");
+    /*Debug*/ // if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, vmassert done \n");
     Interpreter::_deopt_reexecute_return_entry = generate_deopt_entry_for(vtos, 0, return_continuation);
+    /*Debug*/ // if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, generate_deopt.... worked \n");
   }
 
 }
@@ -297,6 +297,7 @@ void TemplateInterpreterGenerator::set_entry_points_for_all_bytes() {
 }
 
 
+
 void TemplateInterpreterGenerator::set_safepoints_for_all_bytes() {
   for (int i = 0; i < DispatchTable::length; i++) {
     Bytecodes::Code code = (Bytecodes::Code)i;
@@ -306,18 +307,24 @@ void TemplateInterpreterGenerator::set_safepoints_for_all_bytes() {
 
 
 void TemplateInterpreterGenerator::set_unimplemented(int i) {
+    /*Debug*/ // if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, entered set_unimplemented \n");
   address e = _unimplemented_bytecode;
   EntryPoint entry(e, e, e, e, e, e, e, e, e, e);
+  /*Debug*///  if(UseMMTk) printf("inside templateInterpreterGenerator.cpp, entrypoint created \n");
   Interpreter::_normal_table.set_entry(i, entry);
+  /*Debug*/ // if(UseMMTk) printf("inside templateInterpreterGenerator.cpp,  set_entry worked \n");
   Interpreter::_wentry_point[i] = _unimplemented_bytecode;
 }
 
 
 void TemplateInterpreterGenerator::set_entry_points(Bytecodes::Code code) {
+    /*Debug*///  if(UseMMTk && code>=83) printf("entered code %d entry point \n", code);
   CodeletMark cm(_masm, Bytecodes::name(code), code);
+   /*Debug*/ // if(UseMMTk && code>=83) printf("code %d cm worked\n", code);
   // initialize entry points
   assert(_unimplemented_bytecode    != NULL, "should have been generated before");
   assert(_illegal_bytecode_sequence != NULL, "should have been generated before");
+  /*Debug*///  if(UseMMTk && code>=83) printf("code %d assert worked\n", code);
   address bep = _illegal_bytecode_sequence;
   address zep = _illegal_bytecode_sequence;
   address cep = _illegal_bytecode_sequence;
@@ -330,20 +337,31 @@ void TemplateInterpreterGenerator::set_entry_points(Bytecodes::Code code) {
   address vep = _unimplemented_bytecode;
   address wep = _unimplemented_bytecode;
   // code for short & wide version of bytecode
+    /*Debug*/ // if(UseMMTk && code>=83) printf("code %d all addresses: %x %x %x %x %x %x %x %x %x %x %x \n", code, bep, zep, cep, sep, aep, iep,
+            //lep, fep, dep, vep, wep);
+  
+    /*Debug*/ // if(UseMMTk && code>=83) printf("code %d Bytecodes::number_of_codes = %d \n", code, Bytecodes::number_of_codes);
+  
   if (Bytecodes::is_defined(code)) {
     Template* t = TemplateTable::template_for(code);
+      /*Debug*/ // if(UseMMTk && code>=83) printf("code %d templet for code worked\n", code);
     assert(t->is_valid(), "just checking");
+      /*Debug*/ //  if(UseMMTk && code>=83) printf("code %d t is valid asserted, going to set short entry points\n", code);
     set_short_entry_points(t, bep, cep, sep, aep, iep, lep, fep, dep, vep);
   }
+    /*Debug*///  if(UseMMTk && code>=83) printf("code %d short entry point worked\n", code);
   if (Bytecodes::wide_is_defined(code)) {
     Template* t = TemplateTable::template_for_wide(code);
     assert(t->is_valid(), "just checking");
     set_wide_entry_point(t, wep);
   }
+    /*Debug*/ // if(UseMMTk && code>=83) printf("code %d wide entry point worked\n", code);
   // set entry points
   EntryPoint entry(bep, zep, cep, sep, aep, iep, lep, fep, dep, vep);
   Interpreter::_normal_table.set_entry(code, entry);
+    /*Debug*/ // if(UseMMTk && code>=83) printf("code %d normal table worked\n", code);
   Interpreter::_wentry_point[code] = wep;
+    /*Debug*/ // if(UseMMTk && code>=83) printf("code %d wentry point  worked\n", code);
 }
 
 
