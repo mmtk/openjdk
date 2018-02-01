@@ -38,7 +38,6 @@
 #include "services/lowMemoryDetector.hpp"
 #include "utilities/align.hpp"
 #include "utilities/copy.hpp"
-#include "gc/mmtk/mmtkHeap.hpp"
 
 // Inline allocation implementations.
 
@@ -144,6 +143,8 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, T
     if (result != NULL) {
       assert(!HAS_PENDING_EXCEPTION,
              "Unexpected exception, will result in uninitialized storage");
+      
+      /*Debug*/printf("inside collectedHeap.inline.hpp, allocated at %x size %u \n", result, size);
       return result;
     }
   }
@@ -160,11 +161,11 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, T
 
     AllocTracer::send_allocation_outside_tlab(klass, result, size * HeapWordSize, THREAD);
     
-    printf("inside collectedHeap.inline.hpp common_mem send_allocation_outside_tlab worked\n");
+    /*Debug*/printf("inside collectedHeap.inline.hpp, allocated at %x size %u \n", result, size);
 
     return result;
   }
-
+  /*Debug*/printf("inside collectedHeap.inline.hpp, couldn't allocate \n");
 
   if (!gc_overhead_limit_was_exceeded) {
     // -XX:+HeapDumpOnOutOfMemoryError and -XX:OnOutOfMemoryError support

@@ -640,6 +640,7 @@ protected:
   void set_mmtk_mutator(size_t thread_id) {
       assert(UseMMTk, "should use UseMMTk");
       _mmtk_mutator = bind_mutator(thread_id);
+      /*Debug*/printf("inside thread.hpp mmtk_mutator bound at %x \n", _mmtk_mutator);
   }
 
   int     lgrp_id() const        { return _lgrp_id; }

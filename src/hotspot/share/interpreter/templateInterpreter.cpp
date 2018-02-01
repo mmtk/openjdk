@@ -41,11 +41,9 @@ void TemplateInterpreter::initialize() {
   // assertions
   assert((int)Bytecodes::number_of_codes <= (int)DispatchTable::length,
          "dispatch table too small");
-
+  
   AbstractInterpreter::initialize();
-
   TemplateTable::initialize();
-
   // generate interpreter
   { ResourceMark rm;
     TraceTime timer("Interpreter generation", TRACETIME_LOG(Info, startuptime));
@@ -53,21 +51,16 @@ void TemplateInterpreter::initialize() {
     NOT_PRODUCT(code_size *= 4;)  // debug uses extra interpreter code space
     _code = new StubQueue(new InterpreterCodeletInterface, code_size, NULL,
                           "Interpreter");
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, new StubQueue worked properly\n");
     TemplateInterpreterGenerator g(_code);
     // Free the unused memory not occupied by the interpreter and the stubs
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, TemplateInterpreterGenerator worked properly\n");
     _code->deallocate_unused_tail();
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, code deallocate... worked properly\n");
   }
-
+  
   if (PrintInterpreter) {
-      /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, if PrintInterpreter true \n");
     ResourceMark rm;
     print();
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, ResourceMark rm and print worked properly\n");
   }
-
+  
   // initialize dispatch table
   _active_table = _normal_table;
 }

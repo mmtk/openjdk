@@ -64,6 +64,14 @@ HeapWord* MMTkHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size
     return (HeapWord*) alloc_slow(thread->mmtk_mutator(), size*HeapWordSize, 1, 0);
 }
 
+HeapWord* last;
+
+HeapWord* allocate_bump(size_t size){
+    HeapWord* obj = last;
+    last += size;
+    return obj;
+}
+
 
 jint MMTkHeap::initialize() {
     
@@ -88,6 +96,7 @@ jint MMTkHeap::initialize() {
                        heap_rs.size());
 
   initialize_reserved_region((HeapWord*)heap_rs.base(), (HeapWord*)(heap_rs.base() + heap_rs.size()));
+  last = (HeapWord*) 0xd6700000;
 
   CardTableExtension* const barrier_set = new CardTableExtension(reserved_region());
   barrier_set->initialize();
@@ -100,16 +109,20 @@ jint MMTkHeap::initialize() {
 
 HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) {
     
-    printf("inside mmtkHeap.cpp mem_allocating size %d \n", size);
+    //return allocate_bump(size);
+    
+    //if(Thread::current()->mmtk_mutator()!=NULL) set_mmtk_mutator(Thread::current()-> self_raw_id());
+    
+   // printf("inside mmtkHeap.cpp mem_allocating size %d \n", size);
     void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0);
     HeapWord* obj = (HeapWord*) obj_ptr;
      
     if (obj != NULL) {
-       printf("inside mmtkHeap.cpp allocated from mmtk %x, %x, %d\n", obj, obj_ptr, size);
+      // printf("inside mmtkHeap.cpp allocated from mmtk %x, %x, %d\n", obj, obj_ptr, size);
       return obj;
     }
     // Otherwise...
-    printf("inside mmtkHeap.cpp returned NULL\n");
+   // printf("inside mmtkHeap.cpp returned NULL\n");
     return (HeapWord*) alloc_slow(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0);
 }
 
@@ -305,4 +318,15 @@ void MMTkHeap::post_initialize() {
   // Override with specific mechanism for each specialized heap type.
 
   // Heap verification
-   void MMTkHeap::verify(VerifyOption option) {guarantee(false, "tverify not supported");}
+   void MMTkHeap::verify(VerifyOption option) {guarantee(false, "verify not supported");}
+   
+   
+   
+   
+   
+   /*
+    * files with prints currently:
+    * jni.cpp, init.cpp, universe.cpp, thread.hpp, thread.cpp, systemDictionary.cpp,
+    * collectedHeap.inline.hpp, mmtkHeap.cpp
+    * 
+    */

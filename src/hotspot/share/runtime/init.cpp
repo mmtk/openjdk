@@ -123,22 +123,14 @@ jint init_globals() {
   /*Debug*/  if(UseMMTk) printf("inside init.cpp, universe_init worked properly\n");
 
 #if INCLUDE_ALL_GCS
-  /*Debug*/  if(UseMMTk) printf("inside init.cpp, going to call g1_barrier.. \n");
   g1_barrier_stubs_init();   // depends on universe_init, must be before interpreter_init
-  /*Debug*/  if(UseMMTk) printf("inside init.cpp, g1_barrier... worked properly\n");
 #endif
   interpreter_init();        // before any methods loaded
-  /*Debug*/  if(UseMMTk) printf("inside init.cpp, interpreter_init worked properly\n");
   invocationCounter_init();  // before any methods loaded
-   /*Debug*/  if(UseMMTk) printf("inside init.cpp, invocationCounter_init worked properly\n");
   marksweep_init();
-   /*Debug*/  printf("inside init.cpp, marksweep_init worked properly\n");
   accessFlags_init();
-   /*Debug*/  if(UseMMTk) printf("inside init.cpp, accessFlags_init worked properly\n");
   templateTable_init();
-   /*Debug*/  if(UseMMTk) printf("inside init.cpp, templateTable_init worked properly\n");
   InterfaceSupport_init();
-  /*Debug*/ if(UseMMTk) printf("inside init.cpp, InterfaceSupportInit worked properly\n");
   SharedRuntime::generate_stubs();
   /*Debug*/ if(UseMMTk) printf("inside init.cpp, generate stubs worked properly\n");
   universe2_init();  // dependent on codeCache_init and stubRoutines_init1
