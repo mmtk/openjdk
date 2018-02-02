@@ -148,8 +148,8 @@ void JNIHandles::destroy_weak_global(jobject handle) {
 
 
 void JNIHandles::oops_do(OopClosure* f) {
-  f->do_oop(&_deleted_handle);
-  _global_handles->oops_do(f);
+  f->do_oop(&_deleted_handle); // Sentinel marking deleted handles
+  _global_handles->oops_do(f); // First global handle block
 }
 
 
@@ -378,7 +378,7 @@ void JNIHandleBlock::release_block(JNIHandleBlock* block, Thread* thread) {
 }
 
 
-void JNIHandleBlock::oops_do(OopClosure* f) {
+void JNIHandleBlock::oops_do(OopClosure* f) { //MMTK : Probable JNI roots.
   JNIHandleBlock* current_chain = this;
   // Iterate over chain of blocks, followed by chains linked through the
   // pop frame links.
@@ -407,7 +407,7 @@ void JNIHandleBlock::oops_do(OopClosure* f) {
 
 
 void JNIHandleBlock::weak_oops_do(BoolObjectClosure* is_alive,
-                                  OopClosure* f) {
+                                  OopClosure* f) {  //MMTK : Probable JNI roots.
   for (JNIHandleBlock* current = this; current != NULL; current = current->_next) {
     assert(current->pop_frame_link() == NULL,
       "blocks holding weak global JNI handles should not have pop frame link set");

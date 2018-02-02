@@ -165,7 +165,7 @@ MarkSweep::FollowStackClosure MarkSweep::follow_stack_closure;
 
 void MarkSweep::FollowStackClosure::do_void() { follow_stack(); }
 
-template <class T> inline void MarkSweep::follow_root(T* p) {//mmtkRoots
+template <class T> inline void MarkSweep::follow_root(T* p) {//mmtkRoots 
   assert(!Universe::heap()->is_in_reserved(p),
          "roots shouldn't be things within the heap");
   T heap_oop = oopDesc::load_heap_oop(p);
