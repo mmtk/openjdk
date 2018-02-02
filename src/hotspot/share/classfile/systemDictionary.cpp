@@ -2048,7 +2048,6 @@ void SystemDictionary::initialize(TRAPS) {
 
   // Allocate private object used as system class loader lock
   _system_loader_lock_obj = oopFactory::new_intArray(0, CHECK);
-  /*Debug*/ if(UseMMTk) printf("inside systemDictionary.cpp, going to initialize  preloaded_classes \n");
   // Initialize basic classes
   initialize_preloaded_classes(CHECK);
 }

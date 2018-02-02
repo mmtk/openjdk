@@ -307,8 +307,6 @@ void initialize_basic_type_klass(Klass* k, TRAPS) {
 
 void Universe::genesis(TRAPS) {
   ResourceMark rm;
-
-  /*Debug*/ if(UseMMTk) printf("inside universe.cpp, entered genesis \n");
   { FlagSetting fs(_bootstrapping, true);
 
     { MutexLocker mc(Compile_lock);
@@ -348,16 +346,12 @@ void Universe::genesis(TRAPS) {
     }
 
     vmSymbols::initialize(CHECK);
-    /*Debug*/ if(UseMMTk) printf("inside universe.cpp, vmsymbols initialized \n");
 
     SystemDictionary::initialize(CHECK);
- /*Debug*/ if(UseMMTk) printf("inside universe.cpp, SystemDictionary initialized \n");
     Klass* ok = SystemDictionary::Object_klass();
 
     _the_null_string            = StringTable::intern("null", CHECK);
     _the_min_jint_string       = StringTable::intern("-2147483648", CHECK);
-    
-/*Debug*/ if(UseMMTk) printf("inside universe.cpp, before include cds \n");
 #if INCLUDE_CDS
     if (UseSharedSpaces) {
       // Verify shared interfaces array.
@@ -373,7 +367,6 @@ void Universe::genesis(TRAPS) {
       _the_array_interfaces_array->at_put(0, SystemDictionary::Cloneable_klass());
       _the_array_interfaces_array->at_put(1, SystemDictionary::Serializable_klass());
     }
-/*Debug*/ if(UseMMTk) printf("inside universe.cpp, goint to initialize basic type klass \n");
     initialize_basic_type_klass(boolArrayKlassObj(), CHECK);
     initialize_basic_type_klass(charArrayKlassObj(), CHECK);
     initialize_basic_type_klass(singleArrayKlassObj(), CHECK);
@@ -383,7 +376,6 @@ void Universe::genesis(TRAPS) {
     initialize_basic_type_klass(intArrayKlassObj(), CHECK);
     initialize_basic_type_klass(longArrayKlassObj(), CHECK);
   } // end of core bootstrapping
-  /*Debug*/ if(UseMMTk) printf("inside universe.cpp, end of core bootstrapping \n");
 
   // Maybe this could be lifted up now that object array can be initialized
   // during the bootstrapping.
@@ -406,8 +398,6 @@ void Universe::genesis(TRAPS) {
   // New
   // Have already been initialized.
   _objectArrayKlassObj->append_to_sibling_list();
-  
-   /*Debug*/ if(UseMMTk) printf("inside universe.cpp, append to sibling list worked \n");
 
   #ifdef ASSERT
   if (FullGCALot) {
@@ -447,8 +437,6 @@ void Universe::genesis(TRAPS) {
     assert(i == _fullgc_alot_dummy_array->length(), "just checking");
   }
   #endif
-
-   /*Debug*/ if(UseMMTk) printf("inside universe.cpp,  going to init dependencies \n");
   // Initialize dependency array for null class loader
   ClassLoaderData::the_null_class_loader_data()->init_dependencies(CHECK);
 

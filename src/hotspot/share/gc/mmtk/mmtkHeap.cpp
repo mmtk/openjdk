@@ -49,29 +49,6 @@ object iterator??!!
 */
 
 
-HeapWord* MMTkHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size) {
-   
-
-    void* obj_ptr = alloc(thread->mmtk_mutator(), size*HeapWordSize, 1, 0);
-    HeapWord* obj = (HeapWord*) obj_ptr;
-     
-    if (obj != NULL) {
-       printf("inside mmtkHeap.cpp allocated from mmtk %x, %x, %d\n", obj, obj_ptr, size);
-      return obj;
-    }
-    // Otherwise...
-    printf("inside mmtkHeap.cpp returned NULL\n");
-    return (HeapWord*) alloc_slow(thread->mmtk_mutator(), size*HeapWordSize, 1, 0);
-}
-
-HeapWord* last;
-
-HeapWord* allocate_bump(size_t size){
-    HeapWord* obj = last;
-    last += size;
-    return obj;
-}
-
 
 jint MMTkHeap::initialize() {
     
@@ -96,7 +73,9 @@ jint MMTkHeap::initialize() {
                        heap_rs.size());
 
   initialize_reserved_region((HeapWord*)heap_rs.base(), (HeapWord*)(heap_rs.base() + heap_rs.size()));
-  last = (HeapWord*) 0xd6700000;
+  
+  _start = (HeapWord*)heap_rs.base();
+  _end = (HeapWord*)(heap_rs.base() + heap_rs.size());
 
   CardTableExtension* const barrier_set = new CardTableExtension(reserved_region());
   barrier_set->initialize();
@@ -111,7 +90,7 @@ HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceed
     
     //return allocate_bump(size);
     
-    //if(Thread::current()->mmtk_mutator()!=NULL) set_mmtk_mutator(Thread::current()-> self_raw_id());
+    printf("inside mmtkHeap.cpp mutator %x \n", Thread::current()->mmtk_mutator());
     
    // printf("inside mmtkHeap.cpp mem_allocating size %d \n", size);
     void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0);
@@ -190,7 +169,6 @@ void MMTkHeap::post_initialize() {
   
     bool MMTkHeap::supports_tlab_allocation() const {
         //returning false is good enough...used in universe.cpp
-        guarantee(false, "supports-tlab-allocation buffers not supported"); 
         return false;
     }
 
@@ -213,7 +191,6 @@ void MMTkHeap::post_initialize() {
   // This permission only extends from the creation of a new object
   // via a TLAB up to the first subsequent safepoint. //However, we will not use tlab
    bool MMTkHeap::can_elide_tlab_store_barriers() const {  //OK
-      // guarantee(false, "can elide tlab store barriers not supported"); 
        return true;
    }
 
@@ -225,7 +202,6 @@ void MMTkHeap::post_initialize() {
   
   // mark to be thus strictly sequenced after the stores.
    bool MMTkHeap::card_mark_must_follow_store() const { //OK
-       //guarantee(false, "card mark must follow store not supported");
        return false;
    }
 
@@ -243,16 +219,17 @@ void MMTkHeap::post_initialize() {
    CollectorPolicy* MMTkHeap::collector_policy() const {return _collector_policy;}//OK
 
    GrowableArray<GCMemoryManager*> MMTkHeap::memory_managers() {//may cause error
-     guarantee(false, "memory managers not supported");
-     GrowableArray<GCMemoryManager*> memory_managers(0);
-     return memory_managers;
-  
-  }
+       
+       GrowableArray<GCMemoryManager*> memory_managers(1);
+       memory_managers.append(_mmtk_manager);
+       return memory_managers;
+   }
    GrowableArray<MemoryPool*> MMTkHeap::memory_pools() {//may cause error
-      guarantee(false, "memory pools not supported");
-      GrowableArray<MemoryPool*> memory_pools(0);
-    return memory_pools;
-  }
+       
+       GrowableArray<MemoryPool*> memory_pools(1);
+       memory_pools.append(_mmtk_pool);
+       return memory_pools;
+   }
 
   // Iterate over all objects, calling "cl.do_object" on each.
    void MMTkHeap::object_iterate(ObjectClosure* cl) { //No need to implement.Traced whole path.Only other heaps call it.
@@ -292,7 +269,12 @@ void MMTkHeap::post_initialize() {
 
 
    void MMTkHeap::initialize_serviceability() {//OK
-       guarantee(false, "initialize serviceability not supported"); 
+       
+      
+       _mmtk_pool = new MMTkMemoryPool(_start, _end,  "MMTk pool",collector_policy()->min_heap_byte_size(), false);
+
+         _mmtk_manager = new GCMemoryManager("MMTk GC", "end of GC");
+         _mmtk_manager->add_pool(_mmtk_pool);
    }
   
   // Print heap information on the given outputStream.
@@ -308,7 +290,7 @@ void MMTkHeap::post_initialize() {
 
   // Print any relevant tracing info that flags imply.
   // Default implementation does nothing.
-   void MMTkHeap::print_tracing_info() const {guarantee(false, "paint tracing info not supported");}
+   void MMTkHeap::print_tracing_info() const {guarantee(false, "print tracing info not supported");}
 
 
   // An object is scavengable if its location may move during a scavenge.
@@ -321,12 +303,7 @@ void MMTkHeap::post_initialize() {
    void MMTkHeap::verify(VerifyOption option) {guarantee(false, "verify not supported");}
    
    
-   
-   
-   
    /*
     * files with prints currently:
-    * jni.cpp, init.cpp, universe.cpp, thread.hpp, thread.cpp, systemDictionary.cpp,
-    * collectedHeap.inline.hpp, mmtkHeap.cpp
-    * 
+    * collectedHeap.inline.hpp, mmtkHeap.cpp,
     */

@@ -33,6 +33,7 @@
 #include "memory/metaspace.hpp"
 #include "utilities/growableArray.hpp"
 #include "utilities/ostream.hpp"
+#include "gc/mmtk/mmtkMemoryPool.hpp"
 
 
 class GCMemoryManager;
@@ -40,6 +41,11 @@ class MemoryPool;
 
 class MMTkHeap : public CollectedHeap {
     NoPolicy* _collector_policy;
+    MMTkMemoryPool* _mmtk_pool;
+    GCMemoryManager* _mmtk_manager;
+    HeapWord* _start;
+    HeapWord* _end;
+    
 
  public:
      

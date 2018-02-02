@@ -142,7 +142,6 @@ jint GCArguments::initialize() {
     return JNI_ERR;
 #else
     if(UseMMTk){
-        printf("inside gcArguments.. got UseMMTk\n");
         _instance = new MMTkArguments();
   }
   else if (UseParallelGC || UseParallelOldGC) {

@@ -119,8 +119,6 @@ jint init_globals() {
                                   // stubRoutines_init1 and metaspace_init.
   if (status != JNI_OK)
     return status;
-  
-  /*Debug*/  if(UseMMTk) printf("inside init.cpp, universe_init worked properly\n");
 
 #if INCLUDE_ALL_GCS
   g1_barrier_stubs_init();   // depends on universe_init, must be before interpreter_init
@@ -132,17 +130,11 @@ jint init_globals() {
   templateTable_init();
   InterfaceSupport_init();
   SharedRuntime::generate_stubs();
-  /*Debug*/ if(UseMMTk) printf("inside init.cpp, generate stubs worked properly\n");
   universe2_init();  // dependent on codeCache_init and stubRoutines_init1
-  /*Debug*/ if(UseMMTk) printf("inside init.cpp, universe2 init worked properly\n");
   referenceProcessor_init();
-  /*Debug*/ if(UseMMTk) printf("inside init.cpp, reference processor init worked properly\n");
   jni_handles_init();
-  /*Debug*/ if(UseMMTk) printf("inside init.cpp, jni handles init worked properly\n");
 #if INCLUDE_VM_STRUCTS
-  /*Debug*/ if(UseMMTk) printf("inside init.cpp, going to vmstructs_init\n");
   vmStructs_init();
-  /*Debug*/  printf("inside init.cpp, vm structs worked properly\n");
 #endif // INCLUDE_VM_STRUCTS
 
   vtableStubs_init();
@@ -173,8 +165,6 @@ jint init_globals() {
   if (PrintFlagsFinal || PrintFlagsRanges) {
     CommandLineFlags::printFlags(tty, false, PrintFlagsRanges);
   }
-
-  /*Debug*/  printf("inside init.cpp, init_globals worked properly\n");
   return JNI_OK;
 }
 
