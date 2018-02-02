@@ -307,7 +307,6 @@ void initialize_basic_type_klass(Klass* k, TRAPS) {
 
 void Universe::genesis(TRAPS) {
   ResourceMark rm;
-
   { FlagSetting fs(_bootstrapping, true);
 
     { MutexLocker mc(Compile_lock);
@@ -349,12 +348,10 @@ void Universe::genesis(TRAPS) {
     vmSymbols::initialize(CHECK);
 
     SystemDictionary::initialize(CHECK);
-
     Klass* ok = SystemDictionary::Object_klass();
 
     _the_null_string            = StringTable::intern("null", CHECK);
     _the_min_jint_string       = StringTable::intern("-2147483648", CHECK);
-
 #if INCLUDE_CDS
     if (UseSharedSpaces) {
       // Verify shared interfaces array.
@@ -370,7 +367,6 @@ void Universe::genesis(TRAPS) {
       _the_array_interfaces_array->at_put(0, SystemDictionary::Cloneable_klass());
       _the_array_interfaces_array->at_put(1, SystemDictionary::Serializable_klass());
     }
-
     initialize_basic_type_klass(boolArrayKlassObj(), CHECK);
     initialize_basic_type_klass(charArrayKlassObj(), CHECK);
     initialize_basic_type_klass(singleArrayKlassObj(), CHECK);
@@ -441,7 +437,6 @@ void Universe::genesis(TRAPS) {
     assert(i == _fullgc_alot_dummy_array->length(), "just checking");
   }
   #endif
-
   // Initialize dependency array for null class loader
   ClassLoaderData::the_null_class_loader_data()->init_dependencies(CHECK);
 
@@ -685,16 +680,12 @@ jint universe_init() {
     return status;
   }
 
-   /*Debug*/printf("inside universe.cpp, initialize_heap inside worked properly\n");
   Metaspace::global_initialize();
-   /*Debug*/printf("inside universe.cpp, global_initialize worked properly\n");
-
   // Initialize performance counters for metaspaces
   MetaspaceCounters::initialize_performance_counters();
   CompressedClassSpaceCounters::initialize_performance_counters();
 
   AOTLoader::universe_init();
-   /*Debug*/printf("inside universe.cpp, AOTLoader::universe_init worked properly\n");
   // Checks 'AfterMemoryInit' constraints.
   if (!CommandLineFlagConstraintList::check_constraints(CommandLineFlagConstraint::AfterMemoryInit)) {
     return JNI_EINVAL;
@@ -703,7 +694,6 @@ jint universe_init() {
   // Create memory for metadata.  Must be after initializing heap for
   // DumpSharedSpaces.
   ClassLoaderData::init_null_class_loader_data();
-   /*Debug*/printf("inside universe.cpp, init_null_class... worked properly\n");
 
   // We have a heap so create the Method* caches before
   // Metaspace::initialize_shared_spaces() tries to populate them.
@@ -713,7 +703,6 @@ jint universe_init() {
   Universe::_throw_illegal_access_error_cache = new LatestMethodCache();
   Universe::_do_stack_walk_cache = new LatestMethodCache();
 
-   /*Debug*/printf("inside universe.cpp, before UseSharedSpaces worked properly\n");
 #if INCLUDE_CDS
   if (UseSharedSpaces) {
     // Read the data structures supporting the shared spaces (shared
@@ -738,12 +727,7 @@ jint universe_init() {
   if (strlen(VerifySubSet) > 0) {
     Universe::initialize_verify_flags();
   }
-   
-    /*Debug*/printf("inside universe.cpp, before resolvemethodtable::create_table worked properly\n");
   ResolvedMethodTable::create_table();
-  
-  
-  /*Debug*/printf("inside universe.cpp, universe_init worked properly\n");
 
   return JNI_OK;
 }
@@ -777,9 +761,7 @@ jint Universe::initialize_heap() {
   log_info(gc)("Using %s", _collectedHeap->name());
 
   GCArguments::arguments()->post_heap_initialize();
-   /*Debug*/ if(UseMMTk) printf("inside universe.cpp, post heap initialize worked properly\n");
   ThreadLocalAllocBuffer::set_max_size(Universe::heap()->max_tlab_size());
-  /*Debug*/ if(UseMMTk) printf("inside universe.cpp, set max size worked properly\n");
 
 #ifdef _LP64
   if (UseCompressedOops) {
@@ -822,16 +804,10 @@ jint Universe::initialize_heap() {
 
   // We will never reach the CATCH below since Exceptions::_throw will cause
   // the VM to exit if an exception is thrown during initialization
-
-  /*Debug*/ if(UseMMTk) printf("inside universe.cpp, before usetlab worked properly\n");
   if (UseTLAB) {
-      /*Debug*/ if(UseMMTk) printf("inside universe.cpp, using tlab, going to call supoorts tlab allocation\n");
     assert(Universe::heap()->supports_tlab_allocation(),
            "Should support thread-local allocation buffers");
-    
-    /*Debug*/ if(UseMMTk) printf("inside universe.cpp, assert support tlab allocation worked properly\n");
     ThreadLocalAllocBuffer::startup_initialization();
-    /*Debug*/ if(UseMMTk) printf("inside universe.cpp, startup initialization worked properly\n");
   }
   return JNI_OK;
 }
@@ -872,8 +848,8 @@ ReservedSpace Universe::reserve_heap(size_t heap_size, size_t alignment) {
       || use_large_pages, "Wrong alignment to use large pages");
 
   // Now create the space.
+  
   ReservedHeapSpace total_rs(total_reserved, alignment, use_large_pages, AllocateHeapAt);
-
   if (total_rs.is_reserved()) {
     assert((total_reserved == total_rs.size()) && ((uintptr_t)total_rs.base() % alignment == 0),
            "must be exactly of required size and alignment");

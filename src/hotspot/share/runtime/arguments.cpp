@@ -2683,7 +2683,6 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args, bool* patch_m
     }
     ///////Test for MMTk --- Tanveer
     else if (match_option(option, "-XX:+UseMMTk")) {
-        printf("inside arguments.cpp got MMTk from command line\n");
         FLAG_SET_DEFAULT(UseMMTk, true);
     }
     

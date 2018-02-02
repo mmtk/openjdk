@@ -38,7 +38,6 @@
 #include "services/lowMemoryDetector.hpp"
 #include "utilities/align.hpp"
 #include "utilities/copy.hpp"
-#include "gc/mmtk/mmtkHeap.hpp"
 
 // Inline allocation implementations.
 
@@ -128,7 +127,7 @@ void CollectedHeap::post_allocation_setup_array(Klass* klass,
 }
 
 HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, TRAPS) {
-
+    
   // Clear unhandled oops for memory allocation.  Memory allocation might
   // not take out a lock if from tlab, so clear here.
   CHECK_UNHANDLED_OOPS_ONLY(THREAD->clear_unhandled_oops();)
@@ -144,6 +143,8 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, T
     if (result != NULL) {
       assert(!HAS_PENDING_EXCEPTION,
              "Unexpected exception, will result in uninitialized storage");
+      
+      /*Debug*/printf("inside collectedHeap.inline.hpp, allocated at %x size %u \n", result, size);
       return result;
     }
   }
@@ -159,10 +160,12 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, T
     THREAD->incr_allocated_bytes(size * HeapWordSize);
 
     AllocTracer::send_allocation_outside_tlab(klass, result, size * HeapWordSize, THREAD);
+    
+    /*Debug*/printf("inside collectedHeap.inline.hpp, allocated at %x size %u \n", result, size);
 
     return result;
   }
-
+  /*Debug*/printf("inside collectedHeap.inline.hpp, couldn't allocate \n");
 
   if (!gc_overhead_limit_was_exceeded) {
     // -XX:+HeapDumpOnOutOfMemoryError and -XX:OnOutOfMemoryError support
@@ -197,20 +200,9 @@ HeapWord* CollectedHeap::common_mem_allocate_init(Klass* klass, size_t size, TRA
 
 HeapWord* CollectedHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size) {
   assert(UseTLAB, "should use UseTLAB");
-
-  if(UseMMTk){
-      return MMTkHeap::allocate_from_tlab(klass, thread, size);
-  }
   
   HeapWord* obj = thread->tlab().allocate(size);
   if (obj != NULL) {
-      
-//#ifndef PRODUCT
-//      printf("inside collectedHeap.inline.hpp %x, %x, %d\n", obj, obj->value(), size);
-//#else
-//      printf("inside collectedHeap.inline.hpp %x, %d\n", obj, size);
-//#endif
-      
       return obj;
   }
   // Otherwise...

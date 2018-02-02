@@ -42,37 +42,25 @@ void TemplateInterpreter::initialize() {
   assert((int)Bytecodes::number_of_codes <= (int)DispatchTable::length,
          "dispatch table too small");
   
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, assert worked properly\n");
-
   AbstractInterpreter::initialize();
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, AbstractInterpreter::initialize worked properly\n");
-
   TemplateTable::initialize();
-  /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, TemplateTable::initialize worked properly\n");
-
   // generate interpreter
   { ResourceMark rm;
     TraceTime timer("Interpreter generation", TRACETIME_LOG(Info, startuptime));
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, TraceTime timer worked properly\n");
     int code_size = InterpreterCodeSize;
     NOT_PRODUCT(code_size *= 4;)  // debug uses extra interpreter code space
     _code = new StubQueue(new InterpreterCodeletInterface, code_size, NULL,
                           "Interpreter");
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, new StubQueue worked properly\n");
     TemplateInterpreterGenerator g(_code);
     // Free the unused memory not occupied by the interpreter and the stubs
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, TemplateInterpreterGenerator worked properly\n");
     _code->deallocate_unused_tail();
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, code deallocate... worked properly\n");
   }
-
+  
   if (PrintInterpreter) {
-      /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, if PrintInterpreter true \n");
     ResourceMark rm;
     print();
-    /*Debug*/  if(UseMMTk) printf("inside templateInterpreter.cpp, ResourceMark rm and print worked properly\n");
   }
-
+  
   // initialize dispatch table
   _active_table = _normal_table;
 }
@@ -96,7 +84,7 @@ EntryPoint::EntryPoint() {
 
 
 EntryPoint::EntryPoint(address bentry, address zentry, address centry, address sentry, address aentry, address ientry, address lentry, address fentry, address dentry, address ventry) {
-  assert(number_of_states == 10, "check the code below");
+    assert(number_of_states == 10, "check the code below");
   _entry[btos] = bentry;
   _entry[ztos] = zentry;
   _entry[ctos] = centry;
