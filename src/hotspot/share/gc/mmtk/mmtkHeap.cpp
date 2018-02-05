@@ -117,7 +117,20 @@ void MMTkHeap::post_initialize() {
 
    size_t MMTkHeap::capacity() const { 
        //has to be implemented. used in universe.cpp
+       //psheap.cpp : size_t value = young_gen()->capacity_in_bytes() + old_gen()->capacity_in_bytes();
        guarantee(false, "capacity not supported"); 
+       return 0;
+   }
+   
+    size_t MMTkHeap::max_capacity() const {
+       //used by jvm
+       
+       // Support for java.lang.Runtime.maxMemory():  return the maximum amount of
+       // memory that the vm could make available for storing 'normal' java objects.
+       // This is based on the reserved address space, but should not include space
+       // that the vm uses internally for bookkeeping or temporary storage
+       // (e.g., in the case of the young gen, one of the survivor spaces).
+       guarantee(false, "max capacity not supported"); 
        return 0;
    }
  
@@ -142,17 +155,7 @@ void MMTkHeap::post_initialize() {
        return false;
    }
 
-   size_t MMTkHeap::max_capacity() const {
-       //used by jvm
-       
-       // Support for java.lang.Runtime.maxMemory():  return the maximum amount of
-       // memory that the vm could make available for storing 'normal' java objects.
-       // This is based on the reserved address space, but should not include space
-       // that the vm uses internally for bookkeeping or temporary storage
-       // (e.g., in the case of the young gen, one of the survivor spaces).
-       guarantee(false, "max capacity not supported"); 
-       return 0;
-   }
+  
    
    bool MMTkHeap::is_in(const void* p) const {
        //used in collected heap , jvmruntime and many more.........
