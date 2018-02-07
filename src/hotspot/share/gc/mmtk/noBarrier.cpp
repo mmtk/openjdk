@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2000, 2017, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,19 +22,32 @@
  *
  */
 
-#ifndef SHARE_VM_GC_SHARED_BARRIERSETCONFIG_INLINE_HPP
-#define SHARE_VM_GC_SHARED_BARRIERSETCONFIG_INLINE_HPP
+#include "gc/mmtk/noBarrier.hpp"
 
-#include "gc/shared/barrierSetConfig.hpp"
 
-#include "gc/shared/modRefBarrierSet.inline.hpp"
-#include "gc/shared/cardTableModRefBS.inline.hpp"
-#include "gc/shared/cardTableModRefBSForCTRS.hpp"
+   void NoBarrier::write_ref_array_work(MemRegion mr) {
+       
+   }
 
-#if INCLUDE_ALL_GCS
-#include "gc/parallel/cardTableExtension.hpp"       // Parallel support
-#include "gc/g1/g1SATBCardTableModRefBS.inline.hpp" // G1 support
-#include "gc/mmtk/noBarrier.hpp"                    // MMTk support
-#endif
+   void NoBarrier::write_region_work(MemRegion mr) {
+       
+   }
 
-#endif // SHARE_VM_GC_SHARED_BARRIERSETCONFIG_INLINE_HPP
+    
+  // Inform the BarrierSet that the the covered heap region that starts
+  // with "base" has been changed to have the given size (possibly from 0,
+  // for initialization.)
+   void NoBarrier::resize_covered_region(MemRegion new_region) {
+       
+   }
+
+  // If the barrier set imposes any alignment restrictions on boundaries
+  // within the heap, this function tells whether they are met.
+   bool NoBarrier::is_aligned(HeapWord* addr) {
+       return true;
+   }
+
+  // Print a description of the memory for the barrier set
+   void NoBarrier::print_on(outputStream* st) const {
+       
+   }

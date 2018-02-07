@@ -22,19 +22,14 @@
  *
  */
 
-#ifndef SHARE_VM_GC_SHARED_BARRIERSETCONFIG_INLINE_HPP
-#define SHARE_VM_GC_SHARED_BARRIERSETCONFIG_INLINE_HPP
+#ifndef SHARE_VM_GC_MMTK_NOBARRIER_INLINE_HPP
+#define SHARE_VM_GC_MMTK_NOBARRIER_INLINE_HPP
 
-#include "gc/shared/barrierSetConfig.hpp"
+#include "gc/mmtk/noBarrier.hpp"
+#include "oops/klass.inline.hpp"
+#include "oops/objArrayOop.hpp"
+#include "oops/oop.hpp"
 
-#include "gc/shared/modRefBarrierSet.inline.hpp"
-#include "gc/shared/cardTableModRefBS.inline.hpp"
-#include "gc/shared/cardTableModRefBSForCTRS.hpp"
 
-#if INCLUDE_ALL_GCS
-#include "gc/parallel/cardTableExtension.hpp"       // Parallel support
-#include "gc/g1/g1SATBCardTableModRefBS.inline.hpp" // G1 support
-#include "gc/mmtk/noBarrier.hpp"                    // MMTk support
-#endif
 
-#endif // SHARE_VM_GC_SHARED_BARRIERSETCONFIG_INLINE_HPP
+#endif // SHARE_VM_GC_MMTK_NOBARRIER_INLINE_HPP
