@@ -77,8 +77,8 @@ jint MMTkHeap::initialize() {
   _start = (HeapWord*)heap_rs.base();
   _end = (HeapWord*)(heap_rs.base() + heap_rs.size());
 
-  CardTableExtension* const barrier_set = new CardTableExtension(reserved_region());
-  barrier_set->initialize();
+  NoBarrier* const barrier_set = new NoBarrier(reserved_region());
+  //barrier_set->initialize();
   set_barrier_set(barrier_set);
     
     printf("inside mmtkHeap.cpp after initialization with size %d\n", mmtk_heap_size);
@@ -289,7 +289,9 @@ void MMTkHeap::post_initialize() {
    void MMTkHeap::print_gc_threads_on(outputStream* st) const {guarantee(false, "print gc threads on not supported");}
 
   // Iterator for all GC threads (other than VM thread)
-   void MMTkHeap::gc_threads_do(ThreadClosure* tc) const {guarantee(false, "gc threads do not supported");}
+   void MMTkHeap::gc_threads_do(ThreadClosure* tc) const {
+     //  guarantee(false, "gc threads do not supported");
+   }
 
   // Print any relevant tracing info that flags imply.
   // Default implementation does nothing.
