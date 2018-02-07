@@ -1481,6 +1481,7 @@ typedef PaddedEnd<ObjectMonitor>              PaddedObjectMonitor;
            declare_type(ModRefBarrierSet,             BarrierSet)         \
            declare_type(CardTableModRefBS,            ModRefBarrierSet)   \
            declare_type(CardTableModRefBSForCTRS,     CardTableModRefBS)  \
+           declare_type(NoBarrier,                    BarrierSet)         \
   declare_toplevel_type(BarrierSet::Name)                                 \
   declare_toplevel_type(CardTableRS)                                      \
   declare_toplevel_type(BlockOffsetSharedArray)                           \
@@ -1510,6 +1511,7 @@ typedef PaddedEnd<ObjectMonitor>              PaddedObjectMonitor;
   declare_toplevel_type(CardTableModRefBS**)                              \
   declare_toplevel_type(CardTableModRefBSForCTRS*)                        \
   declare_toplevel_type(CardTableModRefBSForCTRS**)                       \
+  declare_toplevel_type(NoBarrier*)                                       \
   declare_toplevel_type(CollectedHeap*)                                   \
   declare_toplevel_type(ContiguousSpace*)                                 \
   declare_toplevel_type(DefNewGeneration*)                                \
@@ -2241,6 +2243,7 @@ typedef PaddedEnd<ObjectMonitor>              PaddedObjectMonitor;
   declare_constant(BarrierSet::CardTableExtension)                        \
   declare_constant(BarrierSet::G1SATBCT)                                  \
   declare_constant(BarrierSet::G1SATBCTLogging)                           \
+  declare_constant(BarrierSet::NoBarrier)                                 \
                                                                           \
   declare_constant(BOTConstants::LogN)                                    \
   declare_constant(BOTConstants::LogN_words)                              \
@@ -2267,6 +2270,7 @@ typedef PaddedEnd<ObjectMonitor>              PaddedObjectMonitor;
   declare_constant(CollectedHeap::CMSHeap)                                \
   declare_constant(CollectedHeap::ParallelScavengeHeap)                   \
   declare_constant(CollectedHeap::G1CollectedHeap)                        \
+  declare_constant(CollectedHeap::MMTkHeap)                               \
                                                                           \
   /* constants from Generation::Name enum */                              \
                                                                           \
