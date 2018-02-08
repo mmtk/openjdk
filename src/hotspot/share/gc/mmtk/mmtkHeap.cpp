@@ -88,7 +88,12 @@ jint MMTkHeap::initialize() {
 
 HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) {
     
-    printf("inside mmtkHeap.cpp mutator %x \n", Thread::current()->mmtk_mutator());
+    Thread* thread = Thread::current();
+    // For mmtk support
+      if(thread->mmtk_mutator()==NULL){
+          printf("Setting mutator for thread %p id: %u \n", thread, thread->self_raw_id());
+        thread->set_mmtk_mutator(thread->self_raw_id());
+      }
   
     void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
     HeapWord* obj = (HeapWord*) obj_ptr;

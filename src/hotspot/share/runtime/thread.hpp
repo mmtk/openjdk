@@ -626,11 +626,6 @@ protected:
   uintptr_t self_raw_id()                    { return _self_raw_id; }
   void      set_self_raw_id(uintptr_t value) { 
       _self_raw_id = value;
-      
-      // For mmtk support
-      if(UseMMTk){
-        set_mmtk_mutator(value);
-      }
   }
   // For mmtk support
   MMTk_Mutator mmtk_mutator() {
