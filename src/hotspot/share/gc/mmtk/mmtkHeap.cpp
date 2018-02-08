@@ -88,20 +88,15 @@ jint MMTkHeap::initialize() {
 
 HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) {
     
-    //return allocate_bump(size);
-    
     printf("inside mmtkHeap.cpp mutator %x \n", Thread::current()->mmtk_mutator());
-    
-   // printf("inside mmtkHeap.cpp mem_allocating size %d \n", size);
+  
     void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
     HeapWord* obj = (HeapWord*) obj_ptr;
      
     if (obj != NULL) {
-      // printf("inside mmtkHeap.cpp allocated from mmtk %x, %x, %d\n", obj, obj_ptr, size);
       return obj;
     }
     // Otherwise...
-   // printf("inside mmtkHeap.cpp returned NULL\n");
     return (HeapWord*) alloc_slow(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
 }
 
