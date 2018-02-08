@@ -1468,6 +1468,9 @@ void LIRGenerator::pre_barrier(LIR_Opr addr_opr, LIR_Opr pre_val,
     case BarrierSet::ModRef:
       // No pre barriers
       break;
+    case BarrierSet::NoBarrier:
+      // No pre barriers
+      break; 
     default      :
       ShouldNotReachHere();
 
@@ -1486,6 +1489,9 @@ void LIRGenerator::post_barrier(LIR_OprDesc* addr, LIR_OprDesc* new_val) {
       CardTableModRef_post_barrier(addr,  new_val);
       break;
     case BarrierSet::ModRef:
+      // No post barriers
+      break;
+    case BarrierSet::NoBarrier:
       // No post barriers
       break;
     default      :

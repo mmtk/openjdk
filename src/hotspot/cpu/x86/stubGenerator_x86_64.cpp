@@ -1286,6 +1286,7 @@ class StubGenerator: public StubCodeGenerator {
           __ jcc(Assembler::greaterEqual, L_loop);
         __ BIND(L_done);
         }
+        break;
       case BarrierSet::NoBarrier:
         break;
       default:
