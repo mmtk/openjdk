@@ -93,7 +93,7 @@ HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceed
     printf("inside mmtkHeap.cpp mutator %x \n", Thread::current()->mmtk_mutator());
     
    // printf("inside mmtkHeap.cpp mem_allocating size %d \n", size);
-    void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0);
+    void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
     HeapWord* obj = (HeapWord*) obj_ptr;
      
     if (obj != NULL) {
@@ -102,7 +102,7 @@ HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceed
     }
     // Otherwise...
    // printf("inside mmtkHeap.cpp returned NULL\n");
-    return (HeapWord*) alloc_slow(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0);
+    return (HeapWord*) alloc_slow(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
 }
 
 

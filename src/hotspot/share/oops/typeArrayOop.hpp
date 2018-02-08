@@ -93,7 +93,7 @@ class typeArrayOopDesc : public arrayOopDesc {
   }
 
   jbyte byte_at(int which) const                  { return *byte_at_addr(which); }
-  void byte_at_put(int which, jbyte contents)     { *byte_at_addr(which) = contents; }
+  void byte_at_put(int which, jbyte contents)     { *byte_at_addr(which) = contents;}
 
   jboolean bool_at(int which) const               { return *bool_at_addr(which); }
   void bool_at_put(int which, jboolean contents)  { *bool_at_addr(which) = (((jint)contents) & 1); }

@@ -143,8 +143,6 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, T
     if (result != NULL) {
       assert(!HAS_PENDING_EXCEPTION,
              "Unexpected exception, will result in uninitialized storage");
-      
-      /*Debug*/printf("inside collectedHeap.inline.hpp, allocated at %x size %u \n", result, size);
       return result;
     }
   }
@@ -161,11 +159,11 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, T
 
     AllocTracer::send_allocation_outside_tlab(klass, result, size * HeapWordSize, THREAD);
     
-    /*Debug*/printf("inside collectedHeap.inline.hpp, allocated at %x size %u \n", result, size);
+    /*Debug*/ if(UseMMTk) printf("inside collectedHeap.inline.hpp, allocated at %x size %u \n", result, size);
 
     return result;
   }
-  /*Debug*/printf("inside collectedHeap.inline.hpp, couldn't allocate \n");
+  /*Debug*/ if(UseMMTk) printf("inside collectedHeap.inline.hpp, couldn't allocate \n");
 
   if (!gc_overhead_limit_was_exceeded) {
     // -XX:+HeapDumpOnOutOfMemoryError and -XX:OnOutOfMemoryError support
