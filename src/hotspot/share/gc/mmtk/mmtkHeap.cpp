@@ -48,6 +48,7 @@ last gc time
 object iterator??!!
 */
 
+//New : GCTaskManager* ParallelScavengeHeap::_gc_task_manager = NULL;
 
 
 jint MMTkHeap::initialize() {
@@ -81,6 +82,9 @@ jint MMTkHeap::initialize() {
   //barrier_set->initialize();
   set_barrier_set(barrier_set);
     
+    // Set up the GCTaskManager
+    //New : _gc_task_manager = GCTaskManager::create(ParallelGCThreads);
+  
     printf("inside mmtkHeap.cpp after initialization with size %d\n", mmtk_heap_size);
     return JNI_OK;
     

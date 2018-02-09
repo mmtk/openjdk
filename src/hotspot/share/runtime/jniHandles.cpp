@@ -383,8 +383,7 @@ void JNIHandleBlock::oops_do(OopClosure* f) { //MMTK : Probable JNI roots.
   // Iterate over chain of blocks, followed by chains linked through the
   // pop frame links.
   while (current_chain != NULL) {
-    for (JNIHandleBlock* current = current_chain; current != NULL;
-         current = current->_next) {
+    for (JNIHandleBlock* current = current_chain; current != NULL;current = current->_next) {
       assert(current == current_chain || current->pop_frame_link() == NULL,
         "only blocks first in chain should have pop frame link set");
       for (int index = 0; index < current->_top; index++) {
