@@ -37,7 +37,7 @@
 #include "services/memTracker.hpp"
 #include "utilities/vmError.hpp"
 #include "../../../../../mmtk/api/mmtk.h"
-
+#include "gc/mmtk/mmtkgcTaskManager.hpp"
 /*
 needed support from rust
 heap capacity
@@ -48,7 +48,7 @@ last gc time
 object iterator??!!
 */
 
-mmtkGCTaskManager* mmtkHeap::_gc_task_manager = NULL;
+mmtkGCTaskManager* MMTkHeap::_mmtk_gc_task_manager = NULL;
 
 
 jint MMTkHeap::initialize() {
@@ -83,7 +83,7 @@ jint MMTkHeap::initialize() {
   set_barrier_set(barrier_set);
     
     // Set up the GCTaskManager
-    _gc_task_manager = mmtkGCTaskManager::create(ParallelGCThreads);
+    _mmtk_gc_task_manager = mmtkGCTaskManager::create(ParallelGCThreads);
   
     printf("inside mmtkHeap.cpp after initialization with size %d\n", mmtk_heap_size);
     return JNI_OK;

@@ -38,6 +38,7 @@
 
 class GCMemoryManager;
 class MemoryPool;
+class mmtkGCTaskManager;
 
 class MMTkHeap : public CollectedHeap {
     NoPolicy* _collector_policy;
@@ -45,6 +46,9 @@ class MMTkHeap : public CollectedHeap {
     GCMemoryManager* _mmtk_manager;
     HeapWord* _start;
     HeapWord* _end;
+    
+private:
+    static mmtkGCTaskManager* _mmtk_gc_task_manager;
     
 
  public:

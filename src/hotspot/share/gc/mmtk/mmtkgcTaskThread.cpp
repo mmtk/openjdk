@@ -50,13 +50,13 @@ mmtkGCTaskThread::mmtkGCTaskThread(mmtkGCTaskManager* manager,
 
 mmtkGCTaskThread::~mmtkGCTaskThread() {
   if (_time_stamps != NULL) {
-    FREE_C_HEAP_ARRAY(GCTaskTimeStamp, _time_stamps);
+    FREE_C_HEAP_ARRAY(mmtkGCTaskTimeStamp, _time_stamps);
   }
 }
 
 void mmtkGCTaskThread::add_task_timestamp(const char* name, jlong t_entry, jlong t_exit) {
   if (_time_stamp_index < GCTaskTimeStampEntries) {
-    GCTaskTimeStamp* time_stamp = time_stamp_at(_time_stamp_index);
+    mmtkGCTaskTimeStamp* time_stamp = time_stamp_at(_time_stamp_index);
     time_stamp->set_name(name);
     time_stamp->set_entry_time(t_entry);
     time_stamp->set_exit_time(t_exit);
@@ -72,14 +72,14 @@ void mmtkGCTaskThread::add_task_timestamp(const char* name, jlong t_entry, jlong
   _time_stamp_index++;
 }
 
-GCTaskTimeStamp* mmtkGCTaskThread::time_stamp_at(uint index) {
+mmtkGCTaskTimeStamp* mmtkGCTaskThread::time_stamp_at(uint index) {
   assert(index < GCTaskTimeStampEntries, "Precondition");
   if (_time_stamps == NULL) {
     // We allocate the _time_stamps array lazily since logging can be enabled dynamically
-    GCTaskTimeStamp* time_stamps = NEW_C_HEAP_ARRAY(GCTaskTimeStamp, GCTaskTimeStampEntries, mtGC);
-    if (Atomic::cmpxchg(time_stamps, &_time_stamps, (GCTaskTimeStamp*)NULL) != NULL) {
+    mmtkGCTaskTimeStamp* time_stamps = NEW_C_HEAP_ARRAY(mmtkGCTaskTimeStamp, GCTaskTimeStampEntries, mtGC);
+    if (Atomic::cmpxchg(time_stamps, &_time_stamps, (mmtkGCTaskTimeStamp*)NULL) != NULL) {
       // Someone already setup the time stamps
-      FREE_C_HEAP_ARRAY(GCTaskTimeStamp, time_stamps);
+      FREE_C_HEAP_ARRAY(mmtkGCTaskTimeStamp, time_stamps);
     }
   }
   return &(_time_stamps[index]);
@@ -96,7 +96,7 @@ void mmtkGCTaskThread::print_task_time_stamps() {
                               _time_stamp_index >= GCTaskTimeStampEntries ? " (overflow)" : "");
     const uint max_index = MIN2(_time_stamp_index, GCTaskTimeStampEntries);
     for (uint i = 0; i < max_index; i++) {
-      GCTaskTimeStamp* time_stamp = time_stamp_at(i);
+      mmtkGCTaskTimeStamp* time_stamp = time_stamp_at(i);
       log_debug(gc, task, time)("\t[ %s " JLONG_FORMAT " " JLONG_FORMAT " ]",
                                 time_stamp->name(),
                                 time_stamp->entry_time(),
@@ -140,7 +140,7 @@ void mmtkGCTaskThread::run() {
     ResourceMark rm_inner;
     for (; /* break */; ) {
       // This will block until there is a task to be gotten.
-      GCTask* task = manager()->get_task(which());
+      mmtkGCTask* task = manager()->get_task(which());
       GCIdMark gc_id_mark(task->gc_id());
       // Record if this is an idle task for later use.
       bool is_idle_task = task->is_idle_task();
