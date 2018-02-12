@@ -21,6 +21,8 @@
  * questions.
  *
  */
+#ifdef DISABLING_THE_FILE
+
 
 #ifndef SHARE_VM_GC_PARALLEL_GCTASKTHREAD_HPP
 #define SHARE_VM_GC_PARALLEL_GCTASKTHREAD_HPP
@@ -106,3 +108,6 @@ class mmtkGCTaskTimeStamp : public CHeapObj<mtGC>
 };
 
 #endif // SHARE_VM_GC_PARALLEL_GCTASKTHREAD_HPP
+
+
+#endif //DISABLING_THE_FILE

@@ -21,6 +21,7 @@
  * questions.
  *
  */
+#ifdef DISABLING_THE_FILE
 
 #include "precompiled.hpp"
 #include "gc/mmtk/mmtkgcTaskManager.hpp"
@@ -1071,3 +1072,6 @@ void mmtkMonitorSupply::release(Monitor* instance) {
     // release lock().
   }
 }
+
+
+#endif //DISABLING_THE_FILE

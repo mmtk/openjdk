@@ -21,6 +21,7 @@
  * questions.
  *
  */
+#ifdef DISABLING_THE_FILE
 
 #include "precompiled.hpp"
 #include "gc/mmtk/mmtkgcTaskManager.hpp"
@@ -181,3 +182,6 @@ void mmtkGCTaskThread::run() {
     }
   }
 }
+
+
+#endif //DISABLING_THE_FILE
