@@ -127,7 +127,7 @@ void CollectedHeap::post_allocation_setup_array(Klass* klass,
 }
 
 HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, TRAPS) {
-    
+
   // Clear unhandled oops for memory allocation.  Memory allocation might
   // not take out a lock if from tlab, so clear here.
   CHECK_UNHANDLED_OOPS_ONLY(THREAD->clear_unhandled_oops();)
@@ -150,7 +150,7 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, T
   result = Universe::heap()->mem_allocate(size,
                                           &gc_overhead_limit_was_exceeded);
   if (result != NULL) {
-      
+
     NOT_PRODUCT(Universe::heap()->
       check_for_non_bad_heap_word_value(result, size));
     assert(!HAS_PENDING_EXCEPTION,
@@ -158,8 +158,8 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, T
     THREAD->incr_allocated_bytes(size * HeapWordSize);
 
     AllocTracer::send_allocation_outside_tlab(klass, result, size * HeapWordSize, THREAD);
-    
-    /*Debug*/ if(UseMMTk) printf("inside collectedHeap.inline.hpp, allocated at %x size %u \n", result, size);
+
+   // /*Debug*/ if(UseMMTk) printf("inside collectedHeap.inline.hpp, allocated at %x size %u \n", result, size);
 
     return result;
   }
@@ -198,7 +198,7 @@ HeapWord* CollectedHeap::common_mem_allocate_init(Klass* klass, size_t size, TRA
 
 HeapWord* CollectedHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t size) {
   assert(UseTLAB, "should use UseTLAB");
-  
+
   HeapWord* obj = thread->tlab().allocate(size);
   if (obj != NULL) {
       return obj;

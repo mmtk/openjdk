@@ -691,7 +691,7 @@ void Klass::verify_on(outputStream* st) {
   }
 
   if (java_mirror() != NULL) {
-    guarantee(oopDesc::is_oop(java_mirror()), "should be instance");
+    //todo guarantee(oopDesc::is_oop(java_mirror()), "should be instance");
   }
 }
 

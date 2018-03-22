@@ -30,10 +30,10 @@
    }
 
    void NoBarrier::write_region_work(MemRegion mr) {
-       guarantee(false, "NoBarrier::write_region_work not supported");
+       //guarantee(false, "NoBarrier::write_region_work not supported");
    }
 
-    
+
   // Inform the BarrierSet that the the covered heap region that starts
   // with "base" has been changed to have the given size (possibly from 0,
   // for initialization.)
@@ -49,5 +49,5 @@
 
   // Print a description of the memory for the barrier set
    void NoBarrier::print_on(outputStream* st) const {
-       
+
    }

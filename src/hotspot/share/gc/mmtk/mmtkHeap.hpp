@@ -76,9 +76,10 @@ private:
   virtual bool is_maximal_no_gc() const; 
 
   virtual size_t max_capacity() const; 
-  virtual bool is_in(const void* p) const; 
-  
-   virtual bool supports_tlab_allocation() const; 
+  virtual bool is_in(const void* p) const;
+  virtual bool is_in_reserved(const void* p) const;
+
+      virtual bool supports_tlab_allocation() const;
 
   // The amount of space available for thread-local allocation buffers.
   virtual size_t tlab_capacity(Thread *thr) const; 
