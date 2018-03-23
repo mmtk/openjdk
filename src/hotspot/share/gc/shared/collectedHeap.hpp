@@ -251,8 +251,8 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   virtual size_t max_capacity() const = 0;
 
   // Returns "TRUE" if "p" points into the reserved area of the heap.
-  bool is_in_reserved(const void* p) const {
-    return _reserved.contains(p);
+  virtual bool is_in_reserved(const void* p) const {
+      return _reserved.contains(p);
   }
 
   bool is_in_reserved_or_null(const void* p) const {
