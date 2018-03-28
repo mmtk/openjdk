@@ -279,7 +279,7 @@ oop oopDesc::decode_heap_oop(narrowOop v) {
 narrowOop oopDesc::encode_heap_oop_not_null(oop v) {
   assert(!is_null(v), "oop value can never be zero");
   assert(check_obj_alignment(v), "Address not aligned");
-  //todo assert(Universe::heap()->is_in_reserved(v), "Address not in heap");
+  assert(Universe::heap()->is_in_reserved(v), "Address not in heap");
   address base = Universe::narrow_oop_base();
   int    shift = Universe::narrow_oop_shift();
   uint64_t  pd = (uint64_t)(pointer_delta((void*)v, (void*)base, 1));
