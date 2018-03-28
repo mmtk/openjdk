@@ -62,24 +62,26 @@ jint MMTkHeap::initialize() {
 
     gc_init(mmtk_heap_size);
 
-    ReservedSpace heap_rs = Universe::reserve_heap(mmtk_heap_size, _collector_policy->heap_alignment());
+    //ReservedSpace heap_rs = Universe::reserve_heap(mmtk_heap_size, _collector_policy->heap_alignment());
 
-    printf("inside mmtkHeap.cpp.. reserved base %x size %u \n", heap_rs.base(), heap_rs.size());
+    //printf("inside mmtkHeap.cpp.. reserved base %x size %u \n", heap_rs.base(), heap_rs.size());
 
-    os::trace_page_sizes("Heap",
-                         _collector_policy->min_heap_byte_size(),
-                         mmtk_heap_size,
-                         collector_policy()->space_alignment(),
-                         heap_rs.base(),
-                         heap_rs.size());
-    initialize_reserved_region((HeapWord*)heap_rs.base(), (HeapWord*)(heap_rs.base() + heap_rs.size()));
+    //os::trace_page_sizes("Heap",
+    //                     _collector_policy->min_heap_byte_size(),
+    //                     mmtk_heap_size,
+    //                     collector_policy()->space_alignment(),
+    //                     heap_rs.base(),
+    //                     heap_rs.size());
 
     //_start = (HeapWord*)heap_rs.base();
     //_end = (HeapWord*)(heap_rs.base() + heap_rs.size());
 
     _start = (HeapWord*) starting_heap_address();
     _end = (HeapWord*) last_heap_address();
-    printf("start: %p, end: %p", _start, _end);
+    printf("start: %p, end: %p\n", _start, _end);
+
+    initialize_reserved_region(_start, _end);
+
 
     NoBarrier* const barrier_set = new NoBarrier(reserved_region());
     //barrier_set->initialize();
