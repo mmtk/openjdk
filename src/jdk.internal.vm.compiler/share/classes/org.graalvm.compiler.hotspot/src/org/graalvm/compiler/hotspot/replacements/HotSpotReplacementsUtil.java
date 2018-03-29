@@ -303,7 +303,11 @@ public class HotSpotReplacementsUtil {
         return result;
     }
 
-    public static final LocationIdentity JAVA_THREAD_THREAD_OBJECT_LOCATION = NamedLocationIdentity.mutable("JavaThread::_threadObj");
+    /*
+     * As far as Java code is concerned this can be considered immutable: it is set just after the
+     * JavaThread is created, before it is published. After that, it is never changed.
+     */
+    public static final LocationIdentity JAVA_THREAD_THREAD_OBJECT_LOCATION = NamedLocationIdentity.immutable("JavaThread::_threadObj");
 
     @Fold
     public static int threadObjectOffset(@InjectedParameter GraalHotSpotVMConfig config) {
@@ -563,6 +567,41 @@ public class HotSpotReplacementsUtil {
 
     public static Word arrayStart(int[] a) {
         return WordFactory.unsigned(ComputeObjectAddressNode.get(a, getArrayBaseOffset(JavaKind.Int)));
+    }
+
+    /**
+     * Idiom for making {@link GraalHotSpotVMConfig} a constant.
+     */
+    @Fold
+    public static GraalHotSpotVMConfig getConfig(@InjectedParameter GraalHotSpotVMConfig config) {
+        return config;
+    }
+
+    /**
+     * Calls {@link #arrayAllocationSize(int, int, int, GraalHotSpotVMConfig)} using an injected VM
+     * configuration object.
+     */
+    public static int arrayAllocationSize(int length, int headerSize, int log2ElementSize) {
+        return arrayAllocationSize(length, headerSize, log2ElementSize, getConfig(INJECTED_VMCONFIG));
+    }
+
+    /**
+     * Computes the size of the memory chunk allocated for an array. This size accounts for the
+     * array header size, body size and any padding after the last element to satisfy object
+     * alignment requirements.
+     *
+     * @param length the number of elements in the array
+     * @param headerSize the size of the array header
+     * @param log2ElementSize log2 of the size of an element in the array
+     * @param config the VM configuration providing the
+     *            {@linkplain GraalHotSpotVMConfig#objectAlignment object alignment requirement}
+     * @return the size of the memory chunk
+     */
+    public static int arrayAllocationSize(int length, int headerSize, int log2ElementSize, GraalHotSpotVMConfig config) {
+        int alignment = config.objectAlignment;
+        int size = (length << log2ElementSize) + headerSize + (alignment - 1);
+        int mask = ~(alignment - 1);
+        return size & mask;
     }
 
     @Fold

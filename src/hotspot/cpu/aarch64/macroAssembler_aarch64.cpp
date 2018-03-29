@@ -801,7 +801,7 @@ address MacroAssembler::emit_trampoline_stub(int insts_call_instruction_offset,
   assert(is_NativeCallTrampolineStub_at(stub_start_addr), "doesn't look like a trampoline");
 
   end_a_stub();
-  return stub;
+  return stub_start_addr;
 }
 
 address MacroAssembler::ic_call(address entry, jint method_index) {
@@ -963,8 +963,12 @@ void MacroAssembler::lookup_interface_method(Register recv_klass,
                                              RegisterOrConstant itable_index,
                                              Register method_result,
                                              Register scan_temp,
-                                             Label& L_no_such_interface) {
-  assert_different_registers(recv_klass, intf_klass, method_result, scan_temp);
+                                             Label& L_no_such_interface,
+                         bool return_method) {
+  assert_different_registers(recv_klass, intf_klass, scan_temp);
+  assert_different_registers(method_result, intf_klass, scan_temp);
+  assert(recv_klass != method_result || !return_method,
+     "recv_klass can be destroyed when method isn't needed");
   assert(itable_index.is_constant() || itable_index.as_register() == method_result,
          "caller must use same register for non-constant itable index as for method");
 
@@ -982,12 +986,14 @@ void MacroAssembler::lookup_interface_method(Register recv_klass,
   lea(scan_temp, Address(recv_klass, scan_temp, Address::lsl(3)));
   add(scan_temp, scan_temp, vtable_base);
 
-  // Adjust recv_klass by scaled itable_index, so we can free itable_index.
-  assert(itableMethodEntry::size() * wordSize == wordSize, "adjust the scaling in the code below");
-  // lea(recv_klass, Address(recv_klass, itable_index, Address::times_ptr, itentry_off));
-  lea(recv_klass, Address(recv_klass, itable_index, Address::lsl(3)));
-  if (itentry_off)
-    add(recv_klass, recv_klass, itentry_off);
+  if (return_method) {
+    // Adjust recv_klass by scaled itable_index, so we can free itable_index.
+    assert(itableMethodEntry::size() * wordSize == wordSize, "adjust the scaling in the code below");
+    // lea(recv_klass, Address(recv_klass, itable_index, Address::times_ptr, itentry_off));
+    lea(recv_klass, Address(recv_klass, itable_index, Address::lsl(3)));
+    if (itentry_off)
+      add(recv_klass, recv_klass, itentry_off);
+  }
 
   // for (scan = klass->itable(); scan->interface() != NULL; scan += scan_step) {
   //   if (scan->interface() == intf) {
@@ -1021,8 +1027,10 @@ void MacroAssembler::lookup_interface_method(Register recv_klass,
   bind(found_method);
 
   // Got a hit.
-  ldr(scan_temp, Address(scan_temp, itableOffsetEntry::offset_offset_in_bytes()));
-  ldr(method_result, Address(recv_klass, scan_temp));
+  if (return_method) {
+    ldrw(scan_temp, Address(scan_temp, itableOffsetEntry::offset_offset_in_bytes()));
+    ldr(method_result, Address(recv_klass, scan_temp, Address::uxtw(0)));
+  }
 }
 
 // virtual method calling
@@ -1041,7 +1049,8 @@ void MacroAssembler::lookup_virtual_method(Register recv_klass,
     ldr(method_result, Address(method_result, vtable_offset_in_bytes));
   } else {
     vtable_offset_in_bytes += vtable_index.as_constant() * wordSize;
-    ldr(method_result, Address(recv_klass, vtable_offset_in_bytes));
+    ldr(method_result,
+        form_address(rscratch1, recv_klass, vtable_offset_in_bytes, 0));
   }
 }
 
@@ -2047,9 +2056,14 @@ void MacroAssembler::stop(const char* msg) {
 }
 
 void MacroAssembler::unimplemented(const char* what) {
-  char* b = new char[1024];
-  jio_snprintf(b, 1024, "unimplemented: %s", what);
-  stop(b);
+  const char* buf = NULL;
+  {
+    ResourceMark rm;
+    stringStream ss;
+    ss.print("unimplemented: %s", what);
+    buf = code_string(ss.as_string());
+  }
+  stop(buf);
 }
 
 // If a constant does not fit in an immediate field, generate some
@@ -3742,13 +3756,16 @@ void  MacroAssembler::decode_klass_not_null(Register r) {
 }
 
 void  MacroAssembler::set_narrow_oop(Register dst, jobject obj) {
-  assert (UseCompressedOops, "should only be used for compressed oops");
-  assert (Universe::heap() != NULL, "java heap should be initialized");
-  assert (oop_recorder() != NULL, "this assembler needs an OopRecorder");
-
+#ifdef ASSERT
+  {
+    ThreadInVMfromUnknown tiv;
+    assert (UseCompressedOops, "should only be used for compressed oops");
+    assert (Universe::heap() != NULL, "java heap should be initialized");
+    assert (oop_recorder() != NULL, "this assembler needs an OopRecorder");
+    assert(Universe::heap()->is_in_reserved(JNIHandles::resolve(obj)), "should be real oop");
+  }
+#endif
   int oop_index = oop_recorder()->find_index(obj);
-  assert(Universe::heap()->is_in_reserved(JNIHandles::resolve(obj)), "should be real oop");
-
   InstructionMark im(this);
   RelocationHolder rspec = oop_Relocation::spec(oop_index);
   code_section()->relocate(inst_mark(), rspec);
@@ -4006,8 +4023,13 @@ void MacroAssembler::movoop(Register dst, jobject obj, bool immediate) {
   if (obj == NULL) {
     oop_index = oop_recorder()->allocate_oop_index(obj);
   } else {
+#ifdef ASSERT
+    {
+      ThreadInVMfromUnknown tiv;
+      assert(Universe::heap()->is_in_reserved(JNIHandles::resolve(obj)), "should be real oop");
+    }
+#endif
     oop_index = oop_recorder()->find_index(obj);
-    assert(Universe::heap()->is_in_reserved(JNIHandles::resolve(obj)), "should be real oop");
   }
   RelocationHolder rspec = oop_Relocation::spec(oop_index);
   if (! immediate) {
@@ -4030,8 +4052,13 @@ void MacroAssembler::mov_metadata(Register dst, Metadata* obj) {
 }
 
 Address MacroAssembler::constant_oop_address(jobject obj) {
-  assert(oop_recorder() != NULL, "this assembler needs an OopRecorder");
-  assert(Universe::heap()->is_in_reserved(JNIHandles::resolve(obj)), "not an oop");
+#ifdef ASSERT
+  {
+    ThreadInVMfromUnknown tiv;
+    assert(oop_recorder() != NULL, "this assembler needs an OopRecorder");
+    assert(Universe::heap()->is_in_reserved(JNIHandles::resolve(obj)), "not an oop");
+  }
+#endif
   int oop_index = oop_recorder()->find_index(obj);
   return Address((address)obj, oop_Relocation::spec(oop_index));
 }
@@ -4067,131 +4094,6 @@ void MacroAssembler::tlab_allocate(Register obj,
     sub(var_size_in_bytes, var_size_in_bytes, obj);
   }
   // verify_tlab();
-}
-
-// Preserves r19, and r3.
-Register MacroAssembler::tlab_refill(Label& retry,
-                                     Label& try_eden,
-                                     Label& slow_case) {
-  Register top = r0;
-  Register t1  = r2;
-  Register t2  = r4;
-  assert_different_registers(top, rthread, t1, t2, /* preserve: */ r19, r3);
-  Label do_refill, discard_tlab;
-
-  if (!Universe::heap()->supports_inline_contig_alloc()) {
-    // No allocation in the shared eden.
-    b(slow_case);
-  }
-
-  ldr(top, Address(rthread, in_bytes(JavaThread::tlab_top_offset())));
-  ldr(t1,  Address(rthread, in_bytes(JavaThread::tlab_end_offset())));
-
-  // calculate amount of free space
-  sub(t1, t1, top);
-  lsr(t1, t1, LogHeapWordSize);
-
-  // Retain tlab and allocate object in shared space if
-  // the amount free in the tlab is too large to discard.
-
-  ldr(rscratch1, Address(rthread, in_bytes(JavaThread::tlab_refill_waste_limit_offset())));
-  cmp(t1, rscratch1);
-  br(Assembler::LE, discard_tlab);
-
-  // Retain
-  // ldr(rscratch1, Address(rthread, in_bytes(JavaThread::tlab_refill_waste_limit_offset())));
-  mov(t2, (int32_t) ThreadLocalAllocBuffer::refill_waste_limit_increment());
-  add(rscratch1, rscratch1, t2);
-  str(rscratch1, Address(rthread, in_bytes(JavaThread::tlab_refill_waste_limit_offset())));
-
-  if (TLABStats) {
-    // increment number of slow_allocations
-    addmw(Address(rthread, in_bytes(JavaThread::tlab_slow_allocations_offset())),
-         1, rscratch1);
-  }
-  b(try_eden);
-
-  bind(discard_tlab);
-  if (TLABStats) {
-    // increment number of refills
-    addmw(Address(rthread, in_bytes(JavaThread::tlab_number_of_refills_offset())), 1,
-         rscratch1);
-    // accumulate wastage -- t1 is amount free in tlab
-    addmw(Address(rthread, in_bytes(JavaThread::tlab_fast_refill_waste_offset())), t1,
-         rscratch1);
-  }
-
-  // if tlab is currently allocated (top or end != null) then
-  // fill [top, end + alignment_reserve) with array object
-  cbz(top, do_refill);
-
-  // set up the mark word
-  mov(rscratch1, (intptr_t)markOopDesc::prototype()->copy_set_hash(0x2));
-  str(rscratch1, Address(top, oopDesc::mark_offset_in_bytes()));
-  // set the length to the remaining space
-  sub(t1, t1, typeArrayOopDesc::header_size(T_INT));
-  add(t1, t1, (int32_t)ThreadLocalAllocBuffer::alignment_reserve());
-  lsl(t1, t1, log2_intptr(HeapWordSize/sizeof(jint)));
-  strw(t1, Address(top, arrayOopDesc::length_offset_in_bytes()));
-  // set klass to intArrayKlass
-  {
-    unsigned long offset;
-    // dubious reloc why not an oop reloc?
-    adrp(rscratch1, ExternalAddress((address)Universe::intArrayKlassObj_addr()),
-         offset);
-    ldr(t1, Address(rscratch1, offset));
-  }
-  // store klass last.  concurrent gcs assumes klass length is valid if
-  // klass field is not null.
-  store_klass(top, t1);
-
-  mov(t1, top);
-  ldr(rscratch1, Address(rthread, in_bytes(JavaThread::tlab_start_offset())));
-  sub(t1, t1, rscratch1);
-  incr_allocated_bytes(rthread, t1, 0, rscratch1);
-
-  // refill the tlab with an eden allocation
-  bind(do_refill);
-  ldr(t1, Address(rthread, in_bytes(JavaThread::tlab_size_offset())));
-  lsl(t1, t1, LogHeapWordSize);
-  // allocate new tlab, address returned in top
-  eden_allocate(top, t1, 0, t2, slow_case);
-
-  // Check that t1 was preserved in eden_allocate.
-#ifdef ASSERT
-  if (UseTLAB) {
-    Label ok;
-    Register tsize = r4;
-    assert_different_registers(tsize, rthread, t1);
-    str(tsize, Address(pre(sp, -16)));
-    ldr(tsize, Address(rthread, in_bytes(JavaThread::tlab_size_offset())));
-    lsl(tsize, tsize, LogHeapWordSize);
-    cmp(t1, tsize);
-    br(Assembler::EQ, ok);
-    STOP("assert(t1 != tlab size)");
-    should_not_reach_here();
-
-    bind(ok);
-    ldr(tsize, Address(post(sp, 16)));
-  }
-#endif
-  str(top, Address(rthread, in_bytes(JavaThread::tlab_start_offset())));
-  str(top, Address(rthread, in_bytes(JavaThread::tlab_top_offset())));
-  add(top, top, t1);
-  sub(top, top, (int32_t)ThreadLocalAllocBuffer::alignment_reserve_in_bytes());
-  str(top, Address(rthread, in_bytes(JavaThread::tlab_end_offset())));
-
-  if (ZeroTLAB) {
-    // This is a fast TLAB refill, therefore the GC is not notified of it.
-    // So compiled code must fill the new TLAB with zeroes.
-    ldr(top, Address(rthread, in_bytes(JavaThread::tlab_start_offset())));
-    zero_memory(top,t1,t2);
-  }
-
-  verify_tlab();
-  b(retry);
-
-  return rthread; // for use by caller
 }
 
 // Zero words; len is in bytes

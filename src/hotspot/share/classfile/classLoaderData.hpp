@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -80,6 +80,9 @@ class ClassLoaderDataGraph : public AllStatic {
   // allocations until class unloading
   static bool _metaspace_oom;
 
+  static volatile size_t  _num_instance_classes;
+  static volatile size_t  _num_array_classes;
+
   static ClassLoaderData* add(Handle class_loader, bool anonymous, TRAPS);
   static void post_class_unload_events();
  public:
@@ -154,6 +157,15 @@ class ClassLoaderDataGraph : public AllStatic {
   static void print_creation(outputStream* out, Handle loader, ClassLoaderData* cld, TRAPS);
 
   static bool unload_list_contains(const void* x);
+
+  // instance and array class counters
+  static inline size_t num_instance_classes();
+  static inline size_t num_array_classes();
+  static inline void inc_instance_classes(size_t count);
+  static inline void dec_instance_classes(size_t count);
+  static inline void inc_array_classes(size_t count);
+  static inline void dec_array_classes(size_t count);
+
 #ifndef PRODUCT
   static bool contains_loader_data(ClassLoaderData* loader_data);
 #endif
@@ -217,6 +229,7 @@ class ClassLoaderData : public CHeapObj<mtClass> {
   friend class ClassLoaderDataGraphKlassIteratorAtomic;
   friend class ClassLoaderDataGraphKlassIteratorStatic;
   friend class ClassLoaderDataGraphMetaspaceIterator;
+  friend class InstanceKlass;
   friend class MetaDataFactory;
   friend class Method;
 
@@ -279,11 +292,6 @@ class ClassLoaderData : public CHeapObj<mtClass> {
   ClassLoaderData(Handle h_class_loader, bool is_anonymous, Dependencies dependencies);
   ~ClassLoaderData();
 
-  // GC interface.
-  void clear_claimed()          { _claimed = 0; }
-  bool claimed() const          { return _claimed == 1; }
-  bool claim();
-
   // The CLD are not placed in the Heap, so the Card Table or
   // the Mod Union Table can't be used to mark when CLD have modified oops.
   // The CT and MUT bits saves this information for the whole class loader data.
@@ -307,13 +315,18 @@ class ClassLoaderData : public CHeapObj<mtClass> {
   void packages_do(void f(PackageEntry*));
 
   // Deallocate free list during class unloading.
-  void free_deallocate_list();
+  void free_deallocate_list();      // for the classes that are not unloaded
+  void unload_deallocate_list();    // for the classes that are unloaded
 
   // Allocate out of this class loader data
   MetaWord* allocate(size_t size);
 
   Dictionary* create_dictionary();
  public:
+  // GC interface.
+  void clear_claimed() { _claimed = 0; }
+  bool claimed() const { return _claimed == 1; }
+  bool claim();
 
   bool is_alive(BoolObjectClosure* is_alive_closure) const;
 
@@ -343,7 +356,15 @@ class ClassLoaderData : public CHeapObj<mtClass> {
   }
   bool is_system_class_loader_data() const;
   bool is_platform_class_loader_data() const;
+
+  // Returns true if this class loader data is for the boot class loader.
+  // (Note that the class loader data may be anonymous.)
+  bool is_boot_class_loader_data() const {
+    return class_loader() == NULL;
+  }
+
   bool is_builtin_class_loader_data() const;
+  bool is_permanent_class_loader_data() const;
 
   // The Metaspace is created lazily so may be NULL.  This
   // method will allocate a Metaspace if needed.

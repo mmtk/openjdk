@@ -134,9 +134,6 @@ void G1DefaultAllocator::set_old_full(AllocationContext_t context) {
   _old_is_full = true;
 }
 
-G1PLAB::G1PLAB(size_t gclab_word_size) :
-  PLAB(gclab_word_size), _retired(true) { }
-
 size_t G1Allocator::unsafe_max_tlab_alloc(AllocationContext_t context) {
   // Return the remaining space in the cur alloc region, but not less than
   // the min TLAB size.
@@ -190,14 +187,12 @@ HeapWord* G1Allocator::survivor_attempt_allocation(size_t min_word_size,
 
   HeapWord* result = survivor_gc_alloc_region(context)->attempt_allocation(min_word_size,
                                                                            desired_word_size,
-                                                                           actual_word_size,
-                                                                           false /* bot_updates */);
+                                                                           actual_word_size);
   if (result == NULL && !survivor_is_full(context)) {
     MutexLockerEx x(FreeList_lock, Mutex::_no_safepoint_check_flag);
     result = survivor_gc_alloc_region(context)->attempt_allocation_locked(min_word_size,
                                                                           desired_word_size,
-                                                                          actual_word_size,
-                                                                          false /* bot_updates */);
+                                                                          actual_word_size);
     if (result == NULL) {
       set_survivor_full(context);
     }
@@ -217,14 +212,12 @@ HeapWord* G1Allocator::old_attempt_allocation(size_t min_word_size,
 
   HeapWord* result = old_gc_alloc_region(context)->attempt_allocation(min_word_size,
                                                                       desired_word_size,
-                                                                      actual_word_size,
-                                                                      true /* bot_updates */);
+                                                                      actual_word_size);
   if (result == NULL && !old_is_full(context)) {
     MutexLockerEx x(FreeList_lock, Mutex::_no_safepoint_check_flag);
     result = old_gc_alloc_region(context)->attempt_allocation_locked(min_word_size,
                                                                      desired_word_size,
-                                                                     actual_word_size,
-                                                                     true /* bot_updates */);
+                                                                     actual_word_size);
     if (result == NULL) {
       set_old_full(context);
     }
@@ -257,7 +250,7 @@ HeapWord* G1PLABAllocator::allocate_direct_or_new_plab(InCSetState dest,
   if ((required_in_plab <= plab_word_size) &&
     may_throw_away_buffer(required_in_plab, plab_word_size)) {
 
-    G1PLAB* alloc_buf = alloc_buffer(dest, context);
+    PLAB* alloc_buf = alloc_buffer(dest, context);
     alloc_buf->retire();
 
     size_t actual_plab_size = 0;
@@ -308,7 +301,7 @@ G1DefaultPLABAllocator::G1DefaultPLABAllocator(G1Allocator* allocator) :
 
 void G1DefaultPLABAllocator::flush_and_retire_stats() {
   for (uint state = 0; state < InCSetState::Num; state++) {
-    G1PLAB* const buf = _alloc_buffers[state];
+    PLAB* const buf = _alloc_buffers[state];
     if (buf != NULL) {
       G1EvacStats* stats = _g1h->alloc_buffer_stats(state);
       buf->flush_and_retire_stats(stats);
@@ -322,7 +315,7 @@ void G1DefaultPLABAllocator::waste(size_t& wasted, size_t& undo_wasted) {
   wasted = 0;
   undo_wasted = 0;
   for (uint state = 0; state < InCSetState::Num; state++) {
-    G1PLAB * const buf = _alloc_buffers[state];
+    PLAB * const buf = _alloc_buffers[state];
     if (buf != NULL) {
       wasted += buf->waste();
       undo_wasted += buf->undo_waste();

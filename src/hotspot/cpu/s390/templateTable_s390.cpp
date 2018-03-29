@@ -450,7 +450,7 @@ void TemplateTable::sipush() {
 
 void TemplateTable::ldc(bool wide) {
   transition(vtos, vtos);
-  Label call_ldc, notFloat, notClass, Done;
+  Label call_ldc, notFloat, notClass, notInt, Done;
   const Register RcpIndex = Z_tmp_1;
   const Register Rtags = Z_ARG2;
 
@@ -500,22 +500,17 @@ void TemplateTable::ldc(bool wide) {
   __ z_bru(Done);
 
   __ bind(notFloat);
-#ifdef ASSERT
-  {
-    Label   L;
-
-    __ z_cli(0, Raddr_type, JVM_CONSTANT_Integer);
-    __ z_bre(L);
-    // String and Object are rewritten to fast_aldc.
-    __ stop("unexpected tag type in ldc");
-
-    __ bind(L);
-  }
-#endif
+  __ z_cli(0, Raddr_type, JVM_CONSTANT_Integer);
+  __ z_brne(notInt);
 
   // itos
   __ mem2reg_opt(Z_tos, Address(Z_tmp_2, RcpOffset, base_offset), false);
   __ push_i(Z_tos);
+  __ z_bru(Done);
+
+  // assume the tag is for condy; if not, the VM runtime will tell us
+  __ bind(notInt);
+  condy_helper(Done);
 
   __ bind(Done);
 }
@@ -528,15 +523,23 @@ void TemplateTable::fast_aldc(bool wide) {
 
   const Register index = Z_tmp_2;
   int            index_size = wide ? sizeof(u2) : sizeof(u1);
-  Label          L_resolved;
+  Label          L_do_resolve, L_resolved;
 
   // We are resolved if the resolved reference cache entry contains a
   // non-null object (CallSite, etc.).
   __ get_cache_index_at_bcp(index, 1, index_size);  // Load index.
   __ load_resolved_reference_at_index(Z_tos, index);
   __ z_ltgr(Z_tos, Z_tos);
-  __ z_brne(L_resolved);
+  __ z_bre(L_do_resolve);
 
+  // Convert null sentinel to NULL.
+  __ load_const_optimized(Z_R1_scratch, (intptr_t)Universe::the_null_sentinel_addr());
+  __ z_cg(Z_tos, Address(Z_R1_scratch));
+  __ z_brne(L_resolved);
+  __ clear_reg(Z_tos);
+  __ z_bru(L_resolved);
+
+  __ bind(L_do_resolve);
   // First time invocation - must resolve first.
   address entry = CAST_FROM_FN_PTR(address, InterpreterRuntime::resolve_ldc);
   __ load_const_optimized(Z_ARG1, (int)bytecode());
@@ -548,7 +551,7 @@ void TemplateTable::fast_aldc(bool wide) {
 
 void TemplateTable::ldc2_w() {
   transition(vtos, vtos);
-  Label Long, Done;
+  Label notDouble, notLong, Done;
 
   // Z_tmp_1 = index of cp entry
   __ get_2_byte_integer_at_bcp(Z_tmp_1, 1, InterpreterMacroAssembler::Unsigned);
@@ -566,19 +569,130 @@ void TemplateTable::ldc2_w() {
 
   // Check type.
   __ z_cli(0, Z_tos, JVM_CONSTANT_Double);
-  __ z_brne(Long);
-
+  __ z_brne(notDouble);
   // dtos
   __ mem2freg_opt(Z_ftos, Address(Z_tmp_2, Z_tmp_1, base_offset));
   __ push_d();
   __ z_bru(Done);
 
-  __ bind(Long);
+  __ bind(notDouble);
+  __ z_cli(0, Z_tos, JVM_CONSTANT_Long);
+  __ z_brne(notLong);
   // ltos
   __ mem2reg_opt(Z_tos, Address(Z_tmp_2, Z_tmp_1, base_offset));
   __ push_l();
+  __ z_bru(Done);
+
+  __ bind(notLong);
+  condy_helper(Done);
 
   __ bind(Done);
+}
+
+void TemplateTable::condy_helper(Label& Done) {
+  const Register obj   = Z_tmp_1;
+  const Register off   = Z_tmp_2;
+  const Register flags = Z_ARG1;
+  const Register rarg  = Z_ARG2;
+  __ load_const_optimized(rarg, (int)bytecode());
+  call_VM(obj, CAST_FROM_FN_PTR(address, InterpreterRuntime::resolve_ldc), rarg);
+  __ get_vm_result_2(flags);
+
+  // VMr = obj = base address to find primitive value to push
+  // VMr2 = flags = (tos, off) using format of CPCE::_flags
+  assert(ConstantPoolCacheEntry::field_index_mask == 0xffff, "or use other instructions");
+  __ z_llghr(off, flags);
+  const Address field(obj, off);
+
+  // What sort of thing are we loading?
+  __ z_srl(flags, ConstantPoolCacheEntry::tos_state_shift);
+  // Make sure we don't need to mask flags for tos_state after the above shift.
+  ConstantPoolCacheEntry::verify_tos_state_shift();
+
+  switch (bytecode()) {
+  case Bytecodes::_ldc:
+  case Bytecodes::_ldc_w:
+    {
+      // tos in (itos, ftos, stos, btos, ctos, ztos)
+      Label notInt, notFloat, notShort, notByte, notChar, notBool;
+      __ z_cghi(flags, itos);
+      __ z_brne(notInt);
+      // itos
+      __ z_l(Z_tos, field);
+      __ push(itos);
+      __ z_bru(Done);
+
+      __ bind(notInt);
+      __ z_cghi(flags, ftos);
+      __ z_brne(notFloat);
+      // ftos
+      __ z_le(Z_ftos, field);
+      __ push(ftos);
+      __ z_bru(Done);
+
+      __ bind(notFloat);
+      __ z_cghi(flags, stos);
+      __ z_brne(notShort);
+      // stos
+      __ z_lh(Z_tos, field);
+      __ push(stos);
+      __ z_bru(Done);
+
+      __ bind(notShort);
+      __ z_cghi(flags, btos);
+      __ z_brne(notByte);
+      // btos
+      __ z_lb(Z_tos, field);
+      __ push(btos);
+      __ z_bru(Done);
+
+      __ bind(notByte);
+      __ z_cghi(flags, ctos);
+      __ z_brne(notChar);
+      // ctos
+      __ z_llh(Z_tos, field);
+      __ push(ctos);
+      __ z_bru(Done);
+
+      __ bind(notChar);
+      __ z_cghi(flags, ztos);
+      __ z_brne(notBool);
+      // ztos
+      __ z_lb(Z_tos, field);
+      __ push(ztos);
+      __ z_bru(Done);
+
+      __ bind(notBool);
+      break;
+    }
+
+  case Bytecodes::_ldc2_w:
+    {
+      Label notLong, notDouble;
+      __ z_cghi(flags, ltos);
+      __ z_brne(notLong);
+      // ltos
+      __ z_lg(Z_tos, field);
+      __ push(ltos);
+      __ z_bru(Done);
+
+      __ bind(notLong);
+      __ z_cghi(flags, dtos);
+      __ z_brne(notDouble);
+      // dtos
+      __ z_ld(Z_ftos, field);
+      __ push(dtos);
+      __ z_bru(Done);
+
+      __ bind(notDouble);
+      break;
+    }
+
+  default:
+    ShouldNotReachHere();
+  }
+
+  __ stop("bad ldc/condy");
 }
 
 void TemplateTable::locals_index(Register reg, int offset) {
@@ -3557,66 +3671,67 @@ void TemplateTable::invokeinterface(int byte_no) {
   transition(vtos, vtos);
 
   assert(byte_no == f1_byte, "use this argument");
-  Register interface = Z_tos;
-  Register index = Z_ARG3;
-  Register receiver = Z_tmp_1;
-  Register flags = Z_ARG5;
+  Register klass     = Z_ARG2,
+           method    = Z_ARG3,
+           interface = Z_ARG4,
+           flags     = Z_ARG5,
+           receiver  = Z_tmp_1;
 
   BLOCK_COMMENT("invokeinterface {");
 
-  // Destroys Z_ARG1 and Z_ARG2, thus use Z_ARG4 and copy afterwards.
-  prepare_invoke(byte_no, Z_ARG4, index,  // Get f1 klassOop, f2 itable index.
+  prepare_invoke(byte_no, interface, method,  // Get f1 klassOop, f2 itable index.
                  receiver, flags);
 
   // Z_R14 (== Z_bytecode) : return entry
-
-  __ z_lgr(interface, Z_ARG4);
 
   // Special case of invokeinterface called for virtual method of
   // java.lang.Object. See cpCacheOop.cpp for details.
   // This code isn't produced by javac, but could be produced by
   // another compliant java compiler.
-  Label notMethod;
+  NearLabel notMethod, no_such_interface, no_such_method;
   __ testbit(flags, ConstantPoolCacheEntry::is_forced_virtual_shift);
   __ z_brz(notMethod);
-  invokevirtual_helper(index, receiver, flags);
+  invokevirtual_helper(method, receiver, flags);
   __ bind(notMethod);
 
   // Get receiver klass into klass - also a null check.
-  Register klass = flags;
-
   __ restore_locals();
   __ load_klass(klass, receiver);
 
+  __ lookup_interface_method(klass, interface, noreg, noreg, /*temp*/Z_ARG1,
+                             no_such_interface, /*return_method=*/false);
+
   // Profile this call.
-  __ profile_virtual_call(klass, Z_ARG2/*mdp*/, Z_ARG4/*scratch*/);
+  __ profile_virtual_call(klass, Z_ARG1/*mdp*/, flags/*scratch*/);
 
-  NearLabel  no_such_interface, no_such_method;
-  Register   method = Z_tmp_2;
+  // Find entry point to call.
 
-  // TK 2010-08-24: save the index to Z_ARG4. needed in case of an error
-  //                in throw_AbstractMethodErrorByTemplateTable
-  __ z_lgr(Z_ARG4, index);
-  // TK 2011-03-24: copy also klass because it could be changed in
-  //                lookup_interface_method
-  __ z_lgr(Z_ARG2, klass);
-  __ lookup_interface_method(// inputs: rec. class, interface, itable index
-                              klass, interface, index,
-                              // outputs: method, scan temp. reg
-                              method, Z_tmp_2, Z_R1_scratch,
-                              no_such_interface);
+  // Get declaring interface class from method
+  __ z_lg(interface, Address(method, Method::const_offset()));
+  __ z_lg(interface, Address(interface, ConstMethod::constants_offset()));
+  __ z_lg(interface, Address(interface, ConstantPool::pool_holder_offset_in_bytes()));
+
+  // Get itable index from method
+  Register index   = receiver,
+           method2 = flags;
+  __ z_lgf(index, Address(method, Method::itable_index_offset()));
+  __ z_aghi(index, -Method::itable_index_max);
+  __ z_lcgr(index, index);
+
+  __ lookup_interface_method(klass, interface, index, method2, Z_tmp_2,
+                             no_such_interface);
 
   // Check for abstract method error.
   // Note: This should be done more efficiently via a throw_abstract_method_error
   // interpreter entry point and a conditional jump to it in case of a null
   // method.
-  __ compareU64_and_branch(method, (intptr_t) 0,
+  __ compareU64_and_branch(method2, (intptr_t) 0,
                             Assembler::bcondZero, no_such_method);
 
-  __ profile_arguments_type(Z_ARG3, method, Z_ARG5, true);
+  __ profile_arguments_type(Z_tmp_1, method2, Z_tmp_2, true);
 
   // Do the call.
-  __ jump_from_interpreted(method, Z_ARG5);
+  __ jump_from_interpreted(method2, Z_tmp_2);
   __ should_not_reach_here();
 
   // exception handling code follows...
@@ -3628,12 +3743,8 @@ void TemplateTable::invokeinterface(int byte_no) {
   // Throw exception.
   __ restore_bcp();      // Bcp must be correct for exception handler   (was destroyed).
   __ restore_locals();   // Make sure locals pointer is correct as well (was destroyed).
-  // TK 2010-08-24: Call throw_AbstractMethodErrorByTemplateTable now with the
-  //                relevant information for generating a better error message
   __ call_VM(noreg,
-              CAST_FROM_FN_PTR(address,
-                               InterpreterRuntime::throw_AbstractMethodError),
-              Z_ARG2, interface, Z_ARG4);
+             CAST_FROM_FN_PTR(address, InterpreterRuntime::throw_AbstractMethodError));
   // The call_VM checks for exception, so we should never return here.
   __ should_not_reach_here();
 
@@ -3642,12 +3753,8 @@ void TemplateTable::invokeinterface(int byte_no) {
   // Throw exception.
   __ restore_bcp();      // Bcp must be correct for exception handler   (was destroyed).
   __ restore_locals();   // Make sure locals pointer is correct as well (was destroyed).
-  // TK 2010-08-24: Call throw_IncompatibleClassChangeErrorByTemplateTable now with the
-  //                relevant information for generating a better error message
   __ call_VM(noreg,
-             CAST_FROM_FN_PTR(address,
-                              InterpreterRuntime::throw_IncompatibleClassChangeError),
-             Z_ARG2, interface);
+             CAST_FROM_FN_PTR(address, InterpreterRuntime::throw_IncompatibleClassChangeError));
   // The call_VM checks for exception, so we should never return here.
   __ should_not_reach_here();
 
@@ -3722,7 +3829,6 @@ void TemplateTable::_new() {
   Label slow_case;
   Label done;
   Label initialize_header;
-  Label initialize_object; // Including clearing the fields.
   Label allocate_shared;
 
   BLOCK_COMMENT("TemplateTable::_new {");
@@ -3760,65 +3866,41 @@ void TemplateTable::_new() {
 
   // Allocate the instance
   // 1) Try to allocate in the TLAB.
-  // 2) If fail and the object is large allocate in the shared Eden.
-  // 3) If the above fails (or is not applicable), go to a slow case
+  // 2) If the above fails (or is not applicable), go to a slow case
   // (creates a new TLAB, etc.).
-
-  // Always go the slow path. See comment above this template.
-  const bool allow_shared_alloc = false;
-
+  // Note: compared to other architectures, s390's implementation always goes
+  // to the slow path if TLAB is used and fails.
   if (UseTLAB) {
     Register RoldTopValue = RallocatedObject;
     Register RnewTopValue = tmp;
     __ z_lg(RoldTopValue, Address(Z_thread, JavaThread::tlab_top_offset()));
     __ load_address(RnewTopValue, Address(RoldTopValue, Rsize));
     __ z_cg(RnewTopValue, Address(Z_thread, JavaThread::tlab_end_offset()));
-    __ z_brh(allow_shared_alloc ? allocate_shared : slow_case);
+    __ z_brh(slow_case);
     __ z_stg(RnewTopValue, Address(Z_thread, JavaThread::tlab_top_offset()));
-    if (ZeroTLAB) {
-      // The fields have been already cleared.
-      __ z_bru(initialize_header);
-    } else {
-      // Initialize both the header and fields.
-      if (allow_shared_alloc) {
-        __ z_bru(initialize_object);
-      } else {
-        // Fallthrough to initialize_object, but assert that it is on fall through path.
-        prev_instr_address = __ pc();
-      }
-    }
-  }
 
-  if (allow_shared_alloc) {
-    // Allocation in shared Eden not implemented, because sapjvm allocation trace does not allow it.
-    Unimplemented();
-  }
-
-  if (UseTLAB) {
     Register RobjectFields = tmp;
     Register Rzero = Z_R1_scratch;
-
-    assert(ZeroTLAB || prev_instr_address == __ pc(),
-           "must not omit jump to initialize_object above, as it is not on the fall through path");
     __ clear_reg(Rzero, true /*whole reg*/, false); // Load 0L into Rzero. Don't set CC.
 
-    // The object is initialized before the header. If the object size is
-    // zero, go directly to the header initialization.
-    __ bind(initialize_object);
-    __ z_aghi(Rsize, (int)-sizeof(oopDesc)); // Subtract header size, set CC.
-    __ z_bre(initialize_header);             // Jump if size of fields is zero.
+    if (!ZeroTLAB) {
+      // The object is initialized before the header. If the object size is
+      // zero, go directly to the header initialization.
+      __ z_aghi(Rsize, (int)-sizeof(oopDesc)); // Subtract header size, set CC.
+      __ z_bre(initialize_header);             // Jump if size of fields is zero.
 
-    // Initialize object fields.
-    // See documentation for MVCLE instruction!!!
-    assert(RobjectFields->encoding() % 2 == 0, "RobjectFields must be an even register");
-    assert(Rsize->encoding() == (RobjectFields->encoding()+1),
-           "RobjectFields and Rsize must be a register pair");
-    assert(Rzero->encoding() % 2 == 1, "Rzero must be an odd register");
+      // Initialize object fields.
+      // See documentation for MVCLE instruction!!!
+      assert(RobjectFields->encoding() % 2 == 0, "RobjectFields must be an even register");
+      assert(Rsize->encoding() == (RobjectFields->encoding()+1),
+             "RobjectFields and Rsize must be a register pair");
+      assert(Rzero->encoding() % 2 == 1, "Rzero must be an odd register");
 
-    // Set Rzero to 0 and use it as src length, then mvcle will copy nothing
-    // and fill the object with the padding value 0.
-    __ add2reg(RobjectFields, sizeof(oopDesc), RallocatedObject);
-    __ move_long_ext(RobjectFields, as_Register(Rzero->encoding() - 1), 0);
+      // Set Rzero to 0 and use it as src length, then mvcle will copy nothing
+      // and fill the object with the padding value 0.
+      __ add2reg(RobjectFields, sizeof(oopDesc), RallocatedObject);
+      __ move_long_ext(RobjectFields, as_Register(Rzero->encoding() - 1), 0);
+    }
 
     // Initialize object header only.
     __ bind(initialize_header);

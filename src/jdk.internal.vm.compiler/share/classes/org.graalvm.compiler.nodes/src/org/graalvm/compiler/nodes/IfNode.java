@@ -30,8 +30,8 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-import jdk.vm.ci.meta.MetaAccessProvider;
-import jdk.vm.ci.meta.ResolvedJavaType;
+import org.graalvm.collections.EconomicMap;
+import org.graalvm.collections.Equivalence;
 import org.graalvm.compiler.core.common.calc.Condition;
 import org.graalvm.compiler.core.common.type.IntegerStamp;
 import org.graalvm.compiler.core.common.type.Stamp;
@@ -61,13 +61,13 @@ import org.graalvm.compiler.nodes.java.LoadFieldNode;
 import org.graalvm.compiler.nodes.spi.LIRLowerable;
 import org.graalvm.compiler.nodes.spi.NodeLIRBuilderTool;
 import org.graalvm.compiler.nodes.util.GraphUtil;
-import org.graalvm.util.EconomicMap;
-import org.graalvm.util.Equivalence;
 
 import jdk.vm.ci.meta.Constant;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaKind;
+import jdk.vm.ci.meta.MetaAccessProvider;
 import jdk.vm.ci.meta.PrimitiveConstant;
+import jdk.vm.ci.meta.ResolvedJavaType;
 
 /**
  * The {@code IfNode} represents a branch that can go one of two directions depending on the outcome
@@ -416,6 +416,7 @@ public final class IfNode extends ControlSplitNode implements Simplifiable, LIRL
                 if (result.graph() == null) {
                     result = graph().addOrUniqueWithInputs(result);
                 }
+                result = proxyReplacement(result);
                 /*
                  * This optimization can be performed even if multiple values merge at this phi
                  * since the two inputs get simplified into one.
@@ -556,7 +557,7 @@ public final class IfNode extends ControlSplitNode implements Simplifiable, LIRL
         } else if (next1 instanceof DeoptimizeNode && next2 instanceof DeoptimizeNode) {
             DeoptimizeNode deopt1 = (DeoptimizeNode) next1;
             DeoptimizeNode deopt2 = (DeoptimizeNode) next2;
-            if (deopt1.reason() == deopt2.reason() && deopt1.action() == deopt2.action()) {
+            if (deopt1.getReason() == deopt2.getReason() && deopt1.getAction() == deopt2.getAction()) {
                 // Same deoptimization reason and action.
                 return true;
             }
@@ -599,7 +600,7 @@ public final class IfNode extends ControlSplitNode implements Simplifiable, LIRL
             }
         } else if (a instanceof CompareNode) {
             CompareNode compareA = (CompareNode) a;
-            Condition conditionA = compareA.condition();
+            Condition conditionA = compareA.condition().asCondition();
             if (compareA.unorderedIsTrue()) {
                 return false;
             }
@@ -613,7 +614,7 @@ public final class IfNode extends ControlSplitNode implements Simplifiable, LIRL
                     return false;
                 }
                 Condition comparableCondition = null;
-                Condition conditionB = compareB.condition();
+                Condition conditionB = compareB.condition().asCondition();
                 if (compareB.getX() == compareA.getX() && compareB.getY() == compareA.getY()) {
                     comparableCondition = conditionB;
                 } else if (compareB.getX() == compareA.getY() && compareB.getY() == compareA.getX()) {
@@ -698,6 +699,7 @@ public final class IfNode extends ControlSplitNode implements Simplifiable, LIRL
                     ValueNode falseValue = singlePhi.valueAt(falseEnd);
                     ValueNode conditional = canonicalizeConditionalCascade(tool, trueValue, falseValue);
                     if (conditional != null) {
+                        conditional = proxyReplacement(conditional);
                         singlePhi.setValueAt(trueEnd, conditional);
                         removeThroughFalseBranch(tool, merge);
                         return true;
@@ -727,6 +729,36 @@ public final class IfNode extends ControlSplitNode implements Simplifiable, LIRL
             return true;
         }
         return false;
+    }
+
+    private ValueNode proxyReplacement(ValueNode replacement) {
+        /*
+         * Special case: Every empty diamond we collapse to a conditional node can potentially
+         * contain loop exit nodes on both branches. See the graph below: The two loop exits
+         * (instanceof begin node) exit the same loop. The resulting phi is defined outside the
+         * loop, but the resulting conditional node will be inside the loop, so we need to proxy the
+         * resulting conditional node. Callers of this method ensure that true and false successor
+         * have no usages, therefore a and b in the graph below can never be proxies themselves.
+         */
+        // @formatter:off
+        //              +--+
+        //              |If|
+        //              +--+      +-----+ +-----+
+        //         +----+  +----+ |  a  | |  b  |
+        //         |Lex |  |Lex | +----^+ +^----+
+        //         +----+  +----+      |   |
+        //           +-------+         +---+
+        //           | Merge +---------+Phi|
+        //           +-------+         +---+
+        // @formatter:on
+        if (this.graph().hasValueProxies()) {
+            if (trueSuccessor instanceof LoopExitNode && falseSuccessor instanceof LoopExitNode) {
+                assert ((LoopExitNode) trueSuccessor).loopBegin() == ((LoopExitNode) falseSuccessor).loopBegin();
+                assert trueSuccessor.usages().isEmpty() && falseSuccessor.usages().isEmpty();
+                return this.graph().addOrUnique(new ValueProxyNode(replacement, (LoopExitNode) trueSuccessor));
+            }
+        }
+        return replacement;
     }
 
     protected void removeThroughFalseBranch(SimplifierTool tool, AbstractMergeNode merge) {
@@ -1352,7 +1384,7 @@ public final class IfNode extends ControlSplitNode implements Simplifiable, LIRL
 
     @Override
     public AbstractBeginNode getPrimarySuccessor() {
-        return this.trueSuccessor();
+        return null;
     }
 
     public AbstractBeginNode getSuccessor(boolean result) {

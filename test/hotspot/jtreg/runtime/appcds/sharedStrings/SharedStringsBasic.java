@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,10 +25,7 @@
 /*
  * @test
  * @summary Basic test for shared strings
- * Feature support: G1GC only, compressed oops/kptrs, 64-bit os, not on windows
- * @requires (sun.arch.data.model != "32") & (os.family != "windows")
- * @requires (vm.opt.UseCompressedOops == null) | (vm.opt.UseCompressedOops == true)
- * @requires vm.gc.G1
+ * @requires vm.cds.archived.java.heap
  * @library /test/hotspot/jtreg/runtime/appcds /test/lib
  * @modules java.base/jdk.internal.misc
  * @modules java.management
@@ -50,28 +47,26 @@ public class SharedStringsBasic {
             TestCommon.getSourceFile("SharedStringsBasic.txt").toString();
 
         ProcessBuilder dumpPb = ProcessTools.createJavaProcessBuilder(true,
+          TestCommon.makeCommandLineForAppCDS(
             "-XX:+UseAppCDS",
-            "-XX:+UseCompressedOops",
-            "-XX:+UseG1GC",
             "-cp", appJar,
             "-XX:SharedArchiveConfigFile=" + sharedArchiveConfigFile,
             "-XX:SharedArchiveFile=./SharedStringsBasic.jsa",
             "-Xshare:dump",
-            "-Xlog:cds,cds+hashtables");
+            "-Xlog:cds,cds+hashtables"));
 
         TestCommon.executeAndLog(dumpPb, "dump")
             .shouldContain("Shared string table stats")
             .shouldHaveExitValue(0);
 
         ProcessBuilder runPb = ProcessTools.createJavaProcessBuilder(true,
+          TestCommon.makeCommandLineForAppCDS(
             "-XX:+UseAppCDS",
-            "-XX:+UseCompressedOops",
-            "-XX:+UseG1GC",
             "-cp", appJar,
             "-XX:SharedArchiveFile=./SharedStringsBasic.jsa",
             "-Xshare:auto",
             "-showversion",
-            "HelloString");
+            "HelloString"));
 
         TestCommon.executeAndLog(runPb, "run").shouldHaveExitValue(0);
     }

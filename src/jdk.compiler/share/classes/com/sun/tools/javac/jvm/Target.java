@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2002, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -67,7 +67,7 @@ public enum Target {
     JDK1_10("1.10", 54, 0),
 
     /** JDK 11. */
-    JDK1_11("11", 54, 0); // Initially an alias for JDK_10
+    JDK1_11("11", 55, 0);
 
     private static final Context.Key<Target> targetKey = new Context.Key<>();
 
@@ -133,6 +133,12 @@ public enum Target {
      */
     public boolean hasObjects() {
         return compareTo(JDK1_7) >= 0;
+    }
+
+    /** Does the target VM expect MethodParameters attributes?
+     */
+    public boolean hasMethodParameters() {
+        return compareTo(JDK1_8) >= 0;
     }
 
     /** Does the VM support polymorphic method handle invocation?

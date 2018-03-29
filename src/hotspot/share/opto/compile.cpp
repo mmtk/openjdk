@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -1094,6 +1094,7 @@ void Compile::Init(int aliaslevel) {
   _major_progress = true; // start out assuming good things will happen
   set_has_unsafe_access(false);
   set_max_vector_size(0);
+  set_clear_upper_avx(false);  //false as default for clear upper bits of ymm registers
   Copy::zero_to_bytes(_trap_hist, sizeof(_trap_hist));
   set_decompile_count(0);
 
@@ -2448,8 +2449,8 @@ void Compile::Code_Gen() {
   print_method(PHASE_FINAL_CODE);
 
   // He's dead, Jim.
-  _cfg     = (PhaseCFG*)0xdeadbeef;
-  _regalloc = (PhaseChaitin*)0xdeadbeef;
+  _cfg     = (PhaseCFG*)((intptr_t)0xdeadbeef);
+  _regalloc = (PhaseChaitin*)((intptr_t)0xdeadbeef);
 }
 
 

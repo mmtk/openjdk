@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,10 +23,12 @@
  */
 
 import jdk.test.lib.Utils;
+import jdk.test.lib.BuildHelper;
 import jdk.test.lib.JDKToolFinder;
 import jdk.test.lib.Platform;
 import jdk.test.lib.cds.CDSOptions;
 import jdk.test.lib.cds.CDSTestUtils;
+import jdk.test.lib.cds.CDSTestUtils.Result;
 import jdk.test.lib.process.ProcessTools;
 import jdk.test.lib.process.OutputAnalyzer;
 import java.io.File;
@@ -107,6 +109,19 @@ public class TestCommon extends CDSTestUtils {
         return createArchive(opts);
     }
 
+    // If you use -XX:+UseAppCDS or -XX:-UseAppCDS in your JVM command-line, call this method
+    // to wrap the arguments. On commercial builds, -XX:+UnlockCommercialFeatures will be
+    // prepended to the command-line. See JDK-8193664.
+    public static String[] makeCommandLineForAppCDS(String... args) throws Exception {
+        if (BuildHelper.isCommercialBuild()) {
+            String[] newArgs = new String[args.length + 1];
+            newArgs[0] = "-XX:+UnlockCommercialFeatures";
+            System.arraycopy(args, 0, newArgs, 1, args.length);
+            return newArgs;
+        } else {
+            return args;
+        }
+    }
 
     // Create AppCDS archive using appcds options
     public static OutputAnalyzer createArchive(AppCDSOptions opts)
@@ -139,7 +154,7 @@ public class TestCommon extends CDSTestUtils {
         for (String s : opts.suffix) cmd.add(s);
 
         String[] cmdLine = cmd.toArray(new String[cmd.size()]);
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(true, cmdLine);
+        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(true, makeCommandLineForAppCDS(cmdLine));
         return executeAndLog(pb, "dump");
     }
 
@@ -166,7 +181,7 @@ public class TestCommon extends CDSTestUtils {
         for (String s : opts.suffix) cmd.add(s);
 
         String[] cmdLine = cmd.toArray(new String[cmd.size()]);
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(true, cmdLine);
+        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(true, makeCommandLineForAppCDS(cmdLine));
         return executeAndLog(pb, "exec");
     }
 
@@ -175,6 +190,14 @@ public class TestCommon extends CDSTestUtils {
         AppCDSOptions opts = (new AppCDSOptions());
         opts.addSuffix(suffix);
         return runWithArchive(opts);
+    }
+
+    // This is the new API for running a Java process with CDS enabled.
+    // See comments in the CDSTestUtils.Result class for how to use this method.
+    public static Result run(String... suffix) throws Exception {
+        AppCDSOptions opts = (new AppCDSOptions());
+        opts.addSuffix(suffix);
+        return new Result(opts, runWithArchive(opts));
     }
 
 

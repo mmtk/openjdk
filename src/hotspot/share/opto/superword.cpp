@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -190,7 +190,7 @@ void SuperWord::unrolling_analysis(int &local_loop_unroll_factor) {
   int *ignored_loop_nodes = NEW_RESOURCE_ARRAY(int, ignored_size);
   Node_Stack nstack((int)ignored_size);
   CountedLoopNode *cl = lpt()->_head->as_CountedLoop();
-  Node *cl_exit = cl->loopexit();
+  Node *cl_exit = cl->loopexit_or_null();
   int rpo_idx = _post_block.length();
 
   assert(rpo_idx == 0, "post loop block is empty");
@@ -2442,7 +2442,9 @@ void SuperWord::output() {
     }
   }//for (int i = 0; i < _block.length(); i++)
 
-  C->set_max_vector_size(max_vlen_in_bytes);
+  if (max_vlen_in_bytes > C->max_vector_size()) {
+    C->set_max_vector_size(max_vlen_in_bytes);
+  }
   if (max_vlen_in_bytes > 0) {
     cl->mark_loop_vectorized();
   }

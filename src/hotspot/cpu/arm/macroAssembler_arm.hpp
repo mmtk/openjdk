@@ -359,8 +359,6 @@ public:
   void tlab_allocate(Register obj, Register obj_end, Register tmp1,
                      RegisterOrConstant size_expression, Label& slow_case);
 
-  void tlab_refill(Register top, Register tmp1, Register tmp2, Register tmp3, Register tmp4,
-                   Label& try_eden, Label& slow_case);
   void zero_memory(Register start, Register end, Register tmp);
 
   void incr_allocated_bytes(RegisterOrConstant size_in_bytes, Register tmp);
@@ -1316,7 +1314,7 @@ public:
 
   void lookup_interface_method(Register recv_klass,
                                Register intf_klass,
-                               Register itable_index,
+                               RegisterOrConstant itable_index,
                                Register method_result,
                                Register temp_reg1,
                                Register temp_reg2,

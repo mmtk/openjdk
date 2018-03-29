@@ -314,7 +314,7 @@ void TemplateTable::ldc(bool wide) {
            Rcpool    = R3_ARG1;
 
   transition(vtos, vtos);
-  Label notInt, notClass, exit;
+  Label notInt, notFloat, notClass, exit;
 
   __ get_cpool_and_tags(Rcpool, Rscratch2); // Set Rscratch2 = &tags.
   if (wide) { // Read index.
@@ -356,13 +356,16 @@ void TemplateTable::ldc(bool wide) {
 
   __ align(32, 12);
   __ bind(notInt);
-#ifdef ASSERT
-  // String and Object are rewritten to fast_aldc
   __ cmpdi(CCR0, Rscratch2, JVM_CONSTANT_Float);
-  __ asm_assert_eq("unexpected type", 0x8765);
-#endif
+  __ bne(CCR0, notFloat);
   __ lfsx(F15_ftos, Rcpool, Rscratch1);
   __ push(ftos);
+  __ b(exit);
+
+  __ align(32, 12);
+  // assume the tag is for condy; if not, the VM runtime will tell us
+  __ bind(notFloat);
+  condy_helper(exit);
 
   __ align(32, 12);
   __ bind(exit);
@@ -380,6 +383,19 @@ void TemplateTable::fast_aldc(bool wide) {
   // non-null object (CallSite, etc.)
   __ get_cache_index_at_bcp(Rscratch, 1, index_size);  // Load index.
   __ load_resolved_reference_at_index(R17_tos, Rscratch, &is_null);
+
+  // Convert null sentinel to NULL.
+  int simm16_rest = __ load_const_optimized(Rscratch, Universe::the_null_sentinel_addr(), R0, true);
+  __ ld(Rscratch, simm16_rest, Rscratch);
+  __ cmpld(CCR0, R17_tos, Rscratch);
+  if (VM_Version::has_isel()) {
+    __ isel_0(R17_tos, CCR0, Assembler::equal);
+  } else {
+    Label not_sentinel;
+    __ bne(CCR0, not_sentinel);
+    __ li(R17_tos, 0);
+    __ bind(not_sentinel);
+  }
   __ verify_oop(R17_tos);
   __ dispatch_epilog(atos, Bytecodes::length_for(bytecode()));
 
@@ -395,7 +411,7 @@ void TemplateTable::fast_aldc(bool wide) {
 
 void TemplateTable::ldc2_w() {
   transition(vtos, vtos);
-  Label Llong, Lexit;
+  Label not_double, not_long, exit;
 
   Register Rindex = R11_scratch1,
            Rcpool = R12_scratch2,
@@ -410,23 +426,129 @@ void TemplateTable::ldc2_w() {
   __ addi(Rtag, Rtag, tags_offset);
 
   __ lbzx(Rtag, Rtag, Rindex);
-
   __ sldi(Rindex, Rindex, LogBytesPerWord);
+
   __ cmpdi(CCR0, Rtag, JVM_CONSTANT_Double);
-  __ bne(CCR0, Llong);
-  // A double can be placed at word-aligned locations in the constant pool.
-  // Check out Conversions.java for an example.
-  // Also ConstantPool::header_size() is 20, which makes it very difficult
-  // to double-align double on the constant pool. SG, 11/7/97
+  __ bne(CCR0, not_double);
   __ lfdx(F15_ftos, Rcpool, Rindex);
   __ push(dtos);
-  __ b(Lexit);
+  __ b(exit);
 
-  __ bind(Llong);
+  __ bind(not_double);
+  __ cmpdi(CCR0, Rtag, JVM_CONSTANT_Long);
+  __ bne(CCR0, not_long);
   __ ldx(R17_tos, Rcpool, Rindex);
   __ push(ltos);
+  __ b(exit);
 
-  __ bind(Lexit);
+  __ bind(not_long);
+  condy_helper(exit);
+
+  __ align(32, 12);
+  __ bind(exit);
+}
+
+void TemplateTable::condy_helper(Label& Done) {
+  const Register obj   = R31;
+  const Register off   = R11_scratch1;
+  const Register flags = R12_scratch2;
+  const Register rarg  = R4_ARG2;
+  __ li(rarg, (int)bytecode());
+  call_VM(obj, CAST_FROM_FN_PTR(address, InterpreterRuntime::resolve_ldc), rarg);
+  __ get_vm_result_2(flags);
+
+  // VMr = obj = base address to find primitive value to push
+  // VMr2 = flags = (tos, off) using format of CPCE::_flags
+  __ andi(off, flags, ConstantPoolCacheEntry::field_index_mask);
+
+  // What sort of thing are we loading?
+  __ rldicl(flags, flags, 64-ConstantPoolCacheEntry::tos_state_shift, 64-ConstantPoolCacheEntry::tos_state_bits);
+
+  switch (bytecode()) {
+  case Bytecodes::_ldc:
+  case Bytecodes::_ldc_w:
+    {
+      // tos in (itos, ftos, stos, btos, ctos, ztos)
+      Label notInt, notFloat, notShort, notByte, notChar, notBool;
+      __ cmplwi(CCR0, flags, itos);
+      __ bne(CCR0, notInt);
+      // itos
+      __ lwax(R17_tos, obj, off);
+      __ push(itos);
+      __ b(Done);
+
+      __ bind(notInt);
+      __ cmplwi(CCR0, flags, ftos);
+      __ bne(CCR0, notFloat);
+      // ftos
+      __ lfsx(F15_ftos, obj, off);
+      __ push(ftos);
+      __ b(Done);
+
+      __ bind(notFloat);
+      __ cmplwi(CCR0, flags, stos);
+      __ bne(CCR0, notShort);
+      // stos
+      __ lhax(R17_tos, obj, off);
+      __ push(stos);
+      __ b(Done);
+
+      __ bind(notShort);
+      __ cmplwi(CCR0, flags, btos);
+      __ bne(CCR0, notByte);
+      // btos
+      __ lbzx(R17_tos, obj, off);
+      __ extsb(R17_tos, R17_tos);
+      __ push(btos);
+      __ b(Done);
+
+      __ bind(notByte);
+      __ cmplwi(CCR0, flags, ctos);
+      __ bne(CCR0, notChar);
+      // ctos
+      __ lhzx(R17_tos, obj, off);
+      __ push(ctos);
+      __ b(Done);
+
+      __ bind(notChar);
+      __ cmplwi(CCR0, flags, ztos);
+      __ bne(CCR0, notBool);
+      // ztos
+      __ lbzx(R17_tos, obj, off);
+      __ push(ztos);
+      __ b(Done);
+
+      __ bind(notBool);
+      break;
+    }
+
+  case Bytecodes::_ldc2_w:
+    {
+      Label notLong, notDouble;
+      __ cmplwi(CCR0, flags, ltos);
+      __ bne(CCR0, notLong);
+      // ltos
+      __ ldx(R17_tos, obj, off);
+      __ push(ltos);
+      __ b(Done);
+
+      __ bind(notLong);
+      __ cmplwi(CCR0, flags, dtos);
+      __ bne(CCR0, notDouble);
+      // dtos
+      __ lfdx(F15_ftos, obj, off);
+      __ push(dtos);
+      __ b(Done);
+
+      __ bind(notDouble);
+      break;
+    }
+
+  default:
+    ShouldNotReachHere();
+  }
+
+  __ stop("bad ldc/condy");
 }
 
 // Get the locals index located in the bytecode stream at bcp + offset.
@@ -3486,11 +3608,11 @@ void TemplateTable::invokestatic(int byte_no) {
 void TemplateTable::invokeinterface_object_method(Register Rrecv_klass,
                                                   Register Rret,
                                                   Register Rflags,
-                                                  Register Rindex,
+                                                  Register Rmethod,
                                                   Register Rtemp1,
                                                   Register Rtemp2) {
 
-  assert_different_registers(Rindex, Rret, Rrecv_klass, Rflags, Rtemp1, Rtemp2);
+  assert_different_registers(Rmethod, Rret, Rrecv_klass, Rflags, Rtemp1, Rtemp2);
   Label LnotFinal;
 
   // Check for vfinal.
@@ -3502,14 +3624,14 @@ void TemplateTable::invokeinterface_object_method(Register Rrecv_klass,
   // Final call case.
   __ profile_final_call(Rtemp1, Rscratch);
   // Argument and return type profiling.
-  __ profile_arguments_type(Rindex, Rscratch, Rrecv_klass /* scratch */, true);
+  __ profile_arguments_type(Rmethod, Rscratch, Rrecv_klass /* scratch */, true);
   // Do the final call - the index (f2) contains the method.
-  __ call_from_interpreter(Rindex, Rret, Rscratch, Rrecv_klass /* scratch */);
+  __ call_from_interpreter(Rmethod, Rret, Rscratch, Rrecv_klass /* scratch */);
 
   // Non-final callc case.
   __ bind(LnotFinal);
   __ profile_virtual_call(Rrecv_klass, Rtemp1, Rscratch, false);
-  generate_vtable_call(Rrecv_klass, Rindex, Rret, Rscratch);
+  generate_vtable_call(Rrecv_klass, Rmethod, Rret, Rscratch);
 }
 
 void TemplateTable::invokeinterface(int byte_no) {
@@ -3518,58 +3640,61 @@ void TemplateTable::invokeinterface(int byte_no) {
 
   const Register Rscratch1        = R11_scratch1,
                  Rscratch2        = R12_scratch2,
-                 Rscratch3        = R9_ARG7,
-                 Rscratch4        = R10_ARG8,
-                 Rtable_addr      = Rscratch2,
+                 Rmethod          = R6_ARG4,
+                 Rmethod2         = R9_ARG7,
                  Rinterface_klass = R5_ARG3,
-                 Rret_type        = R8_ARG6,
-                 Rret_addr        = Rret_type,
-                 Rindex           = R6_ARG4,
-                 Rreceiver        = R4_ARG2,
-                 Rrecv_klass      = Rreceiver,
+                 Rret_addr        = R8_ARG6,
+                 Rindex           = R10_ARG8,
+                 Rreceiver        = R3_ARG1,
+                 Rrecv_klass      = R4_ARG2,
                  Rflags           = R7_ARG5;
 
-  prepare_invoke(byte_no, Rinterface_klass, Rret_addr, Rindex, Rreceiver, Rflags, Rscratch1);
+  prepare_invoke(byte_no, Rinterface_klass, Rret_addr, Rmethod, Rreceiver, Rflags, Rscratch1);
 
   // Get receiver klass.
-  __ null_check_throw(Rreceiver, oopDesc::klass_offset_in_bytes(), Rscratch3);
+  __ null_check_throw(Rreceiver, oopDesc::klass_offset_in_bytes(), Rscratch2);
   __ load_klass(Rrecv_klass, Rreceiver);
 
   // Check corner case object method.
-  Label LobjectMethod;
-
+  Label LobjectMethod, L_no_such_interface, Lthrow_ame;
   __ testbitdi(CCR0, R0, Rflags, ConstantPoolCacheEntry::is_forced_virtual_shift);
   __ btrue(CCR0, LobjectMethod);
 
-  // Fallthrough: The normal invokeinterface case.
+  __ lookup_interface_method(Rrecv_klass, Rinterface_klass, noreg, noreg, Rscratch1, Rscratch2,
+                             L_no_such_interface, /*return_method=*/false);
+
   __ profile_virtual_call(Rrecv_klass, Rscratch1, Rscratch2, false);
 
   // Find entry point to call.
-  Label Lthrow_icc, Lthrow_ame;
-  // Result will be returned in Rindex.
-  __ mr(Rscratch4, Rrecv_klass);
-  __ mr(Rscratch3, Rindex);
-  __ lookup_interface_method(Rrecv_klass, Rinterface_klass, Rindex, Rindex, Rscratch1, Rscratch2, Lthrow_icc);
 
-  __ cmpdi(CCR0, Rindex, 0);
+  // Get declaring interface class from method
+  __ ld(Rinterface_klass, in_bytes(Method::const_offset()), Rmethod);
+  __ ld(Rinterface_klass, in_bytes(ConstMethod::constants_offset()), Rinterface_klass);
+  __ ld(Rinterface_klass, ConstantPool::pool_holder_offset_in_bytes(), Rinterface_klass);
+
+  // Get itable index from method
+  __ lwa(Rindex, in_bytes(Method::itable_index_offset()), Rmethod);
+  __ subfic(Rindex, Rindex, Method::itable_index_max);
+
+  __ lookup_interface_method(Rrecv_klass, Rinterface_klass, Rindex, Rmethod2, Rscratch1, Rscratch2,
+                             L_no_such_interface);
+
+  __ cmpdi(CCR0, Rmethod2, 0);
   __ beq(CCR0, Lthrow_ame);
   // Found entry. Jump off!
   // Argument and return type profiling.
-  __ profile_arguments_type(Rindex, Rscratch1, Rscratch2, true);
-  __ call_from_interpreter(Rindex, Rret_addr, Rscratch1, Rscratch2);
+  __ profile_arguments_type(Rmethod2, Rscratch1, Rscratch2, true);
+  //__ profile_called_method(Rindex, Rscratch1);
+  __ call_from_interpreter(Rmethod2, Rret_addr, Rscratch1, Rscratch2);
 
   // Vtable entry was NULL => Throw abstract method error.
   __ bind(Lthrow_ame);
-  __ mr(Rrecv_klass, Rscratch4);
-  __ mr(Rindex, Rscratch3);
   call_VM(noreg, CAST_FROM_FN_PTR(address, InterpreterRuntime::throw_AbstractMethodError));
 
   // Interface was not found => Throw incompatible class change error.
-  __ bind(Lthrow_icc);
-  __ mr(Rrecv_klass, Rscratch4);
+  __ bind(L_no_such_interface);
   call_VM(noreg, CAST_FROM_FN_PTR(address, InterpreterRuntime::throw_IncompatibleClassChangeError));
-
-  __ should_not_reach_here();
+  DEBUG_ONLY( __ should_not_reach_here(); )
 
   // Special case of invokeinterface called for virtual method of
   // java.lang.Object. See ConstantPoolCacheEntry::set_method() for details:
@@ -3577,7 +3702,7 @@ void TemplateTable::invokeinterface(int byte_no) {
   // to handle this corner case. This code isn't produced by javac, but could
   // be produced by another compliant java compiler.
   __ bind(LobjectMethod);
-  invokeinterface_object_method(Rrecv_klass, Rret_addr, Rflags, Rindex, Rscratch1, Rscratch2);
+  invokeinterface_object_method(Rrecv_klass, Rret_addr, Rflags, Rmethod, Rscratch1, Rscratch2);
 }
 
 void TemplateTable::invokedynamic(int byte_no) {
@@ -3634,10 +3759,7 @@ void TemplateTable::_new() {
   transition(vtos, atos);
 
   Label Lslow_case,
-        Ldone,
-        Linitialize_header,
-        Lallocate_shared,
-        Linitialize_object;  // Including clearing the fields.
+        Ldone;
 
   const Register RallocatedObject = R17_tos,
                  RinstanceKlass   = R9_ARG7,
@@ -3648,8 +3770,6 @@ void TemplateTable::_new() {
                  Rtags            = R3_ARG1,
                  Rindex           = R5_ARG3;
 
-  const bool allow_shared_alloc = Universe::heap()->supports_inline_contig_alloc();
-
   // --------------------------------------------------------------------------
   // Check if fast case is possible.
 
@@ -3658,6 +3778,8 @@ void TemplateTable::_new() {
   // Load index of constant pool entry.
   __ get_2_byte_integer_at_bcp(1, Rindex, InterpreterMacroAssembler::Unsigned);
 
+  // Note: compared to other architectures, PPC's implementation always goes
+  // to the slow path if TLAB is used and fails.
   if (UseTLAB) {
     // Make sure the class we're about to instantiate has been resolved
     // This is done before loading instanceKlass to be consistent with the order
@@ -3687,8 +3809,7 @@ void TemplateTable::_new() {
     // Fast case:
     // Allocate the instance.
     // 1) Try to allocate in the TLAB.
-    // 2) If fail, and the TLAB is not full enough to discard, allocate in the shared Eden.
-    // 3) If the above fails (or is not applicable), go to a slow case (creates a new TLAB, etc.).
+    // 2) If the above fails (or is not applicable), go to a slow case (creates a new TLAB, etc.).
 
     Register RoldTopValue = RallocatedObject; // Object will be allocated here if it fits.
     Register RnewTopValue = R6_ARG4;
@@ -3702,53 +3823,13 @@ void TemplateTable::_new() {
 
     // If there is enough space, we do not CAS and do not clear.
     __ cmpld(CCR0, RnewTopValue, RendValue);
-    __ bgt(CCR0, allow_shared_alloc ? Lallocate_shared : Lslow_case);
+    __ bgt(CCR0, Lslow_case);
 
     __ std(RnewTopValue, in_bytes(JavaThread::tlab_top_offset()), R16_thread);
 
-    if (ZeroTLAB) {
-      // The fields have already been cleared.
-      __ b(Linitialize_header);
-    } else {
-      // Initialize both the header and fields.
-      __ b(Linitialize_object);
-    }
-
-    // Fall through: TLAB was too small.
-    if (allow_shared_alloc) {
-      Register RtlabWasteLimitValue = R10_ARG8;
-      Register RfreeValue = RnewTopValue;
-
-      __ bind(Lallocate_shared);
-      // Check if tlab should be discarded (refill_waste_limit >= free).
-      __ ld(RtlabWasteLimitValue, in_bytes(JavaThread::tlab_refill_waste_limit_offset()), R16_thread);
-      __ subf(RfreeValue, RoldTopValue, RendValue);
-      __ srdi(RfreeValue, RfreeValue, LogHeapWordSize); // in dwords
-      __ cmpld(CCR0, RtlabWasteLimitValue, RfreeValue);
-      __ bge(CCR0, Lslow_case);
-
-      // Increment waste limit to prevent getting stuck on this slow path.
-      __ add_const_optimized(RtlabWasteLimitValue, RtlabWasteLimitValue, ThreadLocalAllocBuffer::refill_waste_limit_increment());
-      __ std(RtlabWasteLimitValue, in_bytes(JavaThread::tlab_refill_waste_limit_offset()), R16_thread);
-    }
-    // else: No allocation in the shared eden. // fallthru: __ b(Lslow_case);
-  }
-  // else: Always go the slow path.
-
-  // --------------------------------------------------------------------------
-  // slow case
-  __ bind(Lslow_case);
-  call_VM(R17_tos, CAST_FROM_FN_PTR(address, InterpreterRuntime::_new), Rcpool, Rindex);
-
-  if (UseTLAB) {
-    __ b(Ldone);
-    // --------------------------------------------------------------------------
-    // Init1: Zero out newly allocated memory.
-
-    if (!ZeroTLAB || allow_shared_alloc) {
-      // Clear object fields.
-      __ bind(Linitialize_object);
-
+    if (!ZeroTLAB) {
+      // --------------------------------------------------------------------------
+      // Init1: Zero out newly allocated memory.
       // Initialize remaining object fields.
       Register Rbase = Rtags;
       __ addi(Rinstance_size, Rinstance_size, 7 - (int)sizeof(oopDesc));
@@ -3757,13 +3838,10 @@ void TemplateTable::_new() {
 
       // Clear out object skipping header. Takes also care of the zero length case.
       __ clear_memory_doubleword(Rbase, Rinstance_size);
-      // fallthru: __ b(Linitialize_header);
     }
 
     // --------------------------------------------------------------------------
     // Init2: Initialize the header: mark, klass
-    __ bind(Linitialize_header);
-
     // Init mark.
     if (UseBiasedLocking) {
       __ ld(Rscratch, in_bytes(Klass::prototype_header_offset()), RinstanceKlass);
@@ -3777,13 +3855,18 @@ void TemplateTable::_new() {
     __ store_klass(RallocatedObject, RinstanceKlass, Rscratch); // klass (last for cms)
 
     // Check and trigger dtrace event.
-    {
-      SkipIfEqualZero skip_if(_masm, Rscratch, &DTraceAllocProbes);
-      __ push(atos);
-      __ call_VM_leaf(CAST_FROM_FN_PTR(address, SharedRuntime::dtrace_object_alloc));
-      __ pop(atos);
-    }
+    SkipIfEqualZero::skip_to_label_if_equal_zero(_masm, Rscratch, &DTraceAllocProbes, Ldone);
+    __ push(atos);
+    __ call_VM_leaf(CAST_FROM_FN_PTR(address, SharedRuntime::dtrace_object_alloc));
+    __ pop(atos);
+
+    __ b(Ldone);
   }
+
+  // --------------------------------------------------------------------------
+  // slow case
+  __ bind(Lslow_case);
+  call_VM(R17_tos, CAST_FROM_FN_PTR(address, InterpreterRuntime::_new), Rcpool, Rindex);
 
   // continue
   __ bind(Ldone);

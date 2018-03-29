@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2018, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 Red Hat, Inc.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
@@ -44,6 +44,7 @@
 #include "memory/resourceArea.hpp"
 #include "memory/universe.inline.hpp"
 #include "oops/access.inline.hpp"
+#include "oops/arrayOop.inline.hpp"
 #include "oops/instanceKlass.hpp"
 #include "oops/instanceOop.hpp"
 #include "oops/markOop.hpp"
@@ -53,7 +54,7 @@
 #include "oops/oop.inline.hpp"
 #include "oops/symbol.hpp"
 #include "oops/typeArrayKlass.hpp"
-#include "oops/typeArrayOop.hpp"
+#include "oops/typeArrayOop.inline.hpp"
 #include "prims/jniCheck.hpp"
 #include "prims/jniExport.hpp"
 #include "prims/jniFastGetField.hpp"
@@ -862,16 +863,10 @@ JNI_LEAF(jobjectRefType, jni_GetObjectRefType(JNIEnv *env, jobject obj))
 
   HOTSPOT_JNI_GETOBJECTREFTYPE_ENTRY(env, obj);
 
-  jobjectRefType ret;
-  if (JNIHandles::is_local_handle(thread, obj) ||
-      JNIHandles::is_frame_handle(thread, obj))
-    ret = JNILocalRefType;
-  else if (JNIHandles::is_global_handle(obj))
-    ret = JNIGlobalRefType;
-  else if (JNIHandles::is_weak_global_handle(obj))
-    ret = JNIWeakGlobalRefType;
-  else
-    ret = JNIInvalidRefType;
+  jobjectRefType ret = JNIInvalidRefType;
+  if (obj != NULL) {
+    ret = JNIHandles::handle_type(thread, obj);
+  }
 
   HOTSPOT_JNI_GETOBJECTREFTYPE_RETURN((void *) ret);
   return ret;
@@ -2820,7 +2815,7 @@ jni_Get##Result##ArrayRegion(JNIEnv *env, ElementType##Array array, jsize start,
   EntryProbe; \
   DT_VOID_RETURN_MARK(Get##Result##ArrayRegion); \
   typeArrayOop src = typeArrayOop(JNIHandles::resolve_non_null(array)); \
-  if (start < 0 || len < 0 || ((unsigned int)start + (unsigned int)len > (unsigned int)src->length())) { \
+  if (start < 0 || len < 0 || (start > src->length() - len)) { \
     THROW(vmSymbols::java_lang_ArrayIndexOutOfBoundsException()); \
   } else { \
     if (len > 0) { \
@@ -2870,7 +2865,7 @@ jni_Set##Result##ArrayRegion(JNIEnv *env, ElementType##Array array, jsize start,
   EntryProbe; \
   DT_VOID_RETURN_MARK(Set##Result##ArrayRegion); \
   typeArrayOop dst = typeArrayOop(JNIHandles::resolve_non_null(array)); \
-  if (start < 0 || len < 0 || ((unsigned int)start + (unsigned int)len > (unsigned int)dst->length())) { \
+  if (start < 0 || len < 0 || (start > dst->length() - len)) { \
     THROW(vmSymbols::java_lang_ArrayIndexOutOfBoundsException()); \
   } else { \
     if (len > 0) { \
@@ -3106,7 +3101,7 @@ JNI_ENTRY(void, jni_GetStringRegion(JNIEnv *env, jstring string, jsize start, js
   DT_VOID_RETURN_MARK(GetStringRegion);
   oop s = JNIHandles::resolve_non_null(string);
   int s_len = java_lang_String::length(s);
-  if (start < 0 || len < 0 || start + len > s_len) {
+  if (start < 0 || len < 0 || start > s_len - len) {
     THROW(vmSymbols::java_lang_StringIndexOutOfBoundsException());
   } else {
     if (len > 0) {
@@ -3132,7 +3127,7 @@ JNI_ENTRY(void, jni_GetStringUTFRegion(JNIEnv *env, jstring string, jsize start,
   DT_VOID_RETURN_MARK(GetStringUTFRegion);
   oop s = JNIHandles::resolve_non_null(string);
   int s_len = java_lang_String::length(s);
-  if (start < 0 || len < 0 || start + len > s_len) {
+  if (start < 0 || len < 0 || start > s_len - len) {
     THROW(vmSymbols::java_lang_StringIndexOutOfBoundsException());
   } else {
     //%note jni_7

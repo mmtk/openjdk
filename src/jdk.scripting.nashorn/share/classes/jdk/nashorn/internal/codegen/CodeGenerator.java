@@ -151,6 +151,7 @@ import jdk.nashorn.internal.runtime.Undefined;
 import jdk.nashorn.internal.runtime.UnwarrantedOptimismException;
 import jdk.nashorn.internal.runtime.arrays.ArrayData;
 import jdk.nashorn.internal.runtime.linker.LinkerCallSite;
+import jdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor;
 import jdk.nashorn.internal.runtime.logging.DebugLogger;
 import jdk.nashorn.internal.runtime.logging.Loggable;
 import jdk.nashorn.internal.runtime.logging.Logger;
@@ -1076,12 +1077,6 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             }
 
             @Override
-            public boolean enterCOMMALEFT(final BinaryNode binaryNode) {
-                loadCOMMALEFT(binaryNode, resultBounds);
-                return false;
-            }
-
-            @Override
             public boolean enterCOMMARIGHT(final BinaryNode binaryNode) {
                 loadCOMMARIGHT(binaryNode, resultBounds);
                 return false;
@@ -1138,6 +1133,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             @Override
             public boolean enterVOID(final UnaryNode unaryNode) {
                 loadVOID(unaryNode, resultBounds);
+                return false;
+            }
+
+            @Override
+            public boolean enterDELETE(final UnaryNode unaryNode) {
+                loadDELETE(unaryNode);
                 return false;
             }
 
@@ -1279,7 +1280,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     boolean useOptimisticTypes() {
-        return !lc.inSplitNode() && compiler.useOptimisticTypes();
+        return !lc.inSplitLiteral() && compiler.useOptimisticTypes();
     }
 
     @Override
@@ -2673,9 +2674,8 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             return false;
         }
 
-        if(isDeoptimizedExpression(lhs)) {
-            // This is actually related to "lhs.getType().isPrimitive()" above: any expression being deoptimized in
-            // the current chain of rest-of compilations used to have a type narrower than Object (so it was primitive).
+        if(containsOptimisticExpression(lhs)) {
+            // Any optimistic expression within lhs could be deoptimized and trigger a rest-of compilation.
             // We must not perform undefined check specialization for them, as then we'd violate the basic rule of
             // "Thou shalt not alter the stack shape between a deoptimized method and any of its (transitive) rest-ofs."
             return false;
@@ -2742,11 +2742,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             return false;
         }
 
-        if(isDeoptimizedExpression(lhs)) {
-            // This is actually related to "!lhs.getType().isObject()" above: any expression being deoptimized in
-            // the current chain of rest-of compilations used to have a type narrower than Object. We must not
-            // perform null check specialization for them, as then we'd no longer be loading aconst_null on stack
-            // and thus violate the basic rule of "Thou shalt not alter the stack shape between a deoptimized
+        if(containsOptimisticExpression(lhs)) {
+            // Any optimistic expression within lhs could be deoptimized and trigger a rest-of compilation.
+            // We must not perform null check specialization for them, as then we'd no longer be loading aconst_null
+            // on stack and thus violate the basic rule of "Thou shalt not alter the stack shape between a deoptimized
             // method and any of its (transitive) rest-ofs."
             // NOTE also that if we had a representation for well-known constants (e.g. null, 0, 1, -1, etc.) in
             // Label$Stack.localLoads then this wouldn't be an issue, as we would never (somewhat ridiculously)
@@ -2811,12 +2810,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     /**
-     * Was this expression or any of its subexpressions deoptimized in the current recompilation chain of rest-of methods?
+     * Is this expression or any of its subexpressions optimistic? This includes formerly optimistic
+     * expressions that have been deoptimized in a subsequent compilation.
+     *
      * @param rootExpr the expression being tested
-     * @return true if the expression or any of its subexpressions was deoptimized in the current recompilation chain.
+     * @return true if the expression or any of its subexpressions is optimistic in the current compilation.
      */
-    private boolean isDeoptimizedExpression(final Expression rootExpr) {
-        if(!isRestOf()) {
+    private boolean containsOptimisticExpression(final Expression rootExpr) {
+        if(!useOptimisticTypes()) {
             return false;
         }
         return new Supplier<Boolean>() {
@@ -2832,7 +2833,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     public boolean enterDefault(final Node node) {
                         if(!contains && node instanceof Optimistic) {
                             final int pp = ((Optimistic)node).getProgramPoint();
-                            contains = isValid(pp) && isContinuationEntryPoint(pp);
+                            contains = isValid(pp);
                         }
                         return !contains;
                     }
@@ -2917,12 +2918,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             // to synthetic functions, and FunctionNode.needsCallee() will no longer need to test for isSplit().
             final int literalSlot = fixScopeSlot(currentFunction, 3);
 
-            lc.enterSplitNode();
+            lc.enterSplitLiteral();
 
             creator.populateRange(method, literalType, literalSlot, splitRange.getLow(), splitRange.getHigh());
 
             method._return();
-            lc.exitSplitNode();
+            lc.exitSplitLiteral();
             method.end();
             lc.releaseSlots();
             popMethodEmitter();
@@ -3791,6 +3792,53 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }
     }
 
+    public void loadDELETE(final UnaryNode unaryNode) {
+        final Expression expression = unaryNode.getExpression();
+        if (expression instanceof IdentNode) {
+            final IdentNode ident = (IdentNode)expression;
+            final Symbol symbol = ident.getSymbol();
+            final String name = ident.getName();
+
+            if (symbol.isThis()) {
+                // Can't delete "this", ignore and return true
+                if (!lc.popDiscardIfCurrent(unaryNode)) {
+                    method.load(true);
+                }
+            } else if (lc.getCurrentFunction().isStrict()) {
+                // All other scope identifier delete attempts fail for strict mode
+                method.load(name);
+                method.invoke(ScriptRuntime.STRICT_FAIL_DELETE);
+            } else if (!symbol.isScope() && (symbol.isParam() || (symbol.isVar() && !symbol.isProgramLevel()))) {
+                // If symbol is a function parameter, or a declared non-global variable, delete is a no-op and returns false.
+                if (!lc.popDiscardIfCurrent(unaryNode)) {
+                    method.load(false);
+                }
+            } else {
+                method.loadCompilerConstant(SCOPE);
+                method.load(name);
+                if ((symbol.isGlobal() && !symbol.isFunctionDeclaration()) || symbol.isProgramLevel()) {
+                    method.invoke(ScriptRuntime.SLOW_DELETE);
+                } else {
+                    method.load(false); // never strict here; that was handled with STRICT_FAIL_DELETE above.
+                    method.invoke(ScriptObject.DELETE);
+                }
+            }
+        } else if (expression instanceof BaseNode) {
+            loadExpressionAsObject(((BaseNode)expression).getBase());
+            if (expression instanceof AccessNode) {
+                final AccessNode accessNode = (AccessNode) expression;
+                method.dynamicRemove(accessNode.getProperty(), getCallSiteFlags(), accessNode.isIndex());
+            } else if (expression instanceof IndexNode) {
+                loadExpressionAsObject(((IndexNode) expression).getIndex());
+                method.dynamicRemoveIndex(getCallSiteFlags());
+            } else {
+                throw new AssertionError(expression.getClass().getName());
+            }
+        } else {
+            throw new AssertionError(expression.getClass().getName());
+        }
+    }
+
     public void loadADD(final BinaryNode binaryNode, final TypeBounds resultBounds) {
         new OptimisticOperation(binaryNode, resultBounds) {
             @Override
@@ -4191,11 +4239,6 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     private void loadCOMMARIGHT(final BinaryNode binaryNode, final TypeBounds resultBounds) {
         loadAndDiscard(binaryNode.lhs());
         loadMaybeDiscard(binaryNode, binaryNode.rhs(), resultBounds);
-    }
-
-    private void loadCOMMALEFT(final BinaryNode binaryNode, final TypeBounds resultBounds) {
-        loadMaybeDiscard(binaryNode, binaryNode.lhs(), resultBounds);
-        loadAndDiscard(binaryNode.rhs());
     }
 
     private void loadDIV(final BinaryNode binaryNode, final TypeBounds resultBounds) {
@@ -4654,10 +4697,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             this.optimistic = optimistic;
             this.expression = (Expression)optimistic;
             this.resultBounds = resultBounds;
-            this.isOptimistic = isOptimistic(optimistic) && useOptimisticTypes() &&
+            this.isOptimistic = isOptimistic(optimistic)
                     // Operation is only effectively optimistic if its type, after being coerced into the result bounds
                     // is narrower than the upper bound.
-                    resultBounds.within(Type.generic(((Expression)optimistic).getType())).narrowerThan(resultBounds.widest);
+                    && resultBounds.within(Type.generic(((Expression)optimistic).getType())).narrowerThan(resultBounds.widest);
+            // Optimistic operations need to be executed in optimistic context, else unwarranted optimism will go unnoticed
+            assert !this.isOptimistic || useOptimisticTypes();
         }
 
         MethodEmitter emit() {

@@ -584,8 +584,34 @@ ciConstant ciEnv::get_constant_by_index_impl(const constantPoolHandle& cpool,
   int index = pool_index;
   if (cache_index >= 0) {
     assert(index < 0, "only one kind of index at a time");
+    index = cpool->object_to_cp_index(cache_index);
     oop obj = cpool->resolved_references()->obj_at(cache_index);
     if (obj != NULL) {
+      if (obj == Universe::the_null_sentinel()) {
+        return ciConstant(T_OBJECT, get_object(NULL));
+      }
+      BasicType bt = T_OBJECT;
+      if (cpool->tag_at(index).is_dynamic_constant())
+        bt = FieldType::basic_type(cpool->uncached_signature_ref_at(index));
+      if (is_reference_type(bt)) {
+      } else {
+        // we have to unbox the primitive value
+        if (!is_java_primitive(bt))  return ciConstant();
+        jvalue value;
+        BasicType bt2 = java_lang_boxing_object::get_value(obj, &value);
+        assert(bt2 == bt, "");
+        switch (bt2) {
+        case T_DOUBLE:  return ciConstant(value.d);
+        case T_FLOAT:   return ciConstant(value.f);
+        case T_LONG:    return ciConstant(value.j);
+        case T_INT:     return ciConstant(bt2, value.i);
+        case T_SHORT:   return ciConstant(bt2, value.s);
+        case T_BYTE:    return ciConstant(bt2, value.b);
+        case T_CHAR:    return ciConstant(bt2, value.c);
+        case T_BOOLEAN: return ciConstant(bt2, value.z);
+        default:  return ciConstant();
+        }
+      }
       ciObject* ciobj = get_object(obj);
       if (ciobj->is_array()) {
         return ciConstant(T_ARRAY, ciobj);
@@ -594,7 +620,6 @@ ciConstant ciEnv::get_constant_by_index_impl(const constantPoolHandle& cpool,
         return ciConstant(T_OBJECT, ciobj);
       }
     }
-    index = cpool->object_to_cp_index(cache_index);
   }
   constantTag tag = cpool->tag_at(index);
   if (tag.is_int()) {
@@ -650,6 +675,8 @@ ciConstant ciEnv::get_constant_by_index_impl(const constantPoolHandle& cpool,
     ciSymbol* signature = get_symbol(cpool->method_handle_signature_ref_at(index));
     ciObject* ciobj     = get_unloaded_method_handle_constant(callee, name, signature, ref_kind);
     return ciConstant(T_OBJECT, ciobj);
+  } else if (tag.is_dynamic_constant()) {
+    return ciConstant();
   } else {
     ShouldNotReachHere();
     return ciConstant();
@@ -1164,28 +1191,30 @@ ciInstance* ciEnv::unloaded_ciinstance() {
 
 void ciEnv::dump_compile_data(outputStream* out) {
   CompileTask* task = this->task();
-  Method* method = task->method();
-  int entry_bci = task->osr_bci();
-  int comp_level = task->comp_level();
-  out->print("compile %s %s %s %d %d",
-                method->klass_name()->as_quoted_ascii(),
-                method->name()->as_quoted_ascii(),
-                method->signature()->as_quoted_ascii(),
-                entry_bci, comp_level);
-  if (compiler_data() != NULL) {
-    if (is_c2_compile(comp_level)) {
+  if (task) {
+    Method* method = task->method();
+    int entry_bci = task->osr_bci();
+    int comp_level = task->comp_level();
+    out->print("compile %s %s %s %d %d",
+               method->klass_name()->as_quoted_ascii(),
+               method->name()->as_quoted_ascii(),
+               method->signature()->as_quoted_ascii(),
+               entry_bci, comp_level);
+    if (compiler_data() != NULL) {
+      if (is_c2_compile(comp_level)) {
 #ifdef COMPILER2
-      // Dump C2 inlining data.
-      ((Compile*)compiler_data())->dump_inline_data(out);
+        // Dump C2 inlining data.
+        ((Compile*)compiler_data())->dump_inline_data(out);
 #endif
-    } else if (is_c1_compile(comp_level)) {
+      } else if (is_c1_compile(comp_level)) {
 #ifdef COMPILER1
-      // Dump C1 inlining data.
-      ((Compilation*)compiler_data())->dump_inline_data(out);
+        // Dump C1 inlining data.
+        ((Compilation*)compiler_data())->dump_inline_data(out);
 #endif
+      }
     }
+    out->cr();
   }
-  out->cr();
 }
 
 void ciEnv::dump_replay_data_unsafe(outputStream* out) {
