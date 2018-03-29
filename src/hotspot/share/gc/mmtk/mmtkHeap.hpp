@@ -42,6 +42,7 @@ class MemoryPool;
 
 class MMTkHeap : public CollectedHeap {
     NoPolicy* _collector_policy;
+    SoftRefPolicy* _soft_ref_policy;
     MMTkMemoryPool* _mmtk_pool;
     GCMemoryManager* _mmtk_manager;
     HeapWord* _start;
@@ -78,8 +79,7 @@ private:
   size_t max_capacity() const;
   bool is_in(const void* p) const;
   bool is_in_reserved(const void* p) const;
-
-      virtual bool supports_tlab_allocation() const;
+  bool supports_tlab_allocation() const;
 
   // The amount of space available for thread-local allocation buffers.
   size_t tlab_capacity(Thread *thr) const;
@@ -105,6 +105,8 @@ private:
 
   // Return the CollectorPolicy for the heap
   CollectorPolicy* collector_policy() const ;
+
+  SoftRefPolicy* soft_ref_policy();
 
   GrowableArray<GCMemoryManager*> memory_managers() ;
   GrowableArray<MemoryPool*> memory_pools();

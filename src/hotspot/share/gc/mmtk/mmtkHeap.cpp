@@ -53,8 +53,6 @@ object iterator??!!
 
 jint MMTkHeap::initialize() {
 
-    CollectedHeap::pre_initialize();
-
     const size_t heap_size = collector_policy()->max_heap_byte_size();
     printf("policy max heap size %d, min heap size %d\n", heap_size, collector_policy()->min_heap_byte_size());
     size_t mmtk_heap_size = heap_size;
@@ -236,6 +234,8 @@ void MMTkHeap::do_full_collection(bool clear_all_soft_refs) {//later when gc is 
 
 // Return the CollectorPolicy for the heap
 CollectorPolicy* MMTkHeap::collector_policy() const {return _collector_policy;}//OK
+
+SoftRefPolicy* MMTkHeap::soft_ref_policy() {return _soft_ref_policy;}//OK
 
 GrowableArray<GCMemoryManager*> MMTkHeap::memory_managers() {//may cause error
 
