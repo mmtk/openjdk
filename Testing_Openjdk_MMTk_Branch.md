@@ -10,12 +10,11 @@ sudo apt-get install g++-7
 ```
 
 We have to install openjdk-9 from a specific mirror.
-So edit these files:
+So edit this file:
 
 >***/etc/apt/sources.list.d/openjdk-ubuntu-ppa-xenial.list***  
- ***/etc/apt/sources.list.d/openjdk-r-ubuntu-ppa-xenial.list***
 
-Comment out all uncommented lines by adding a '#' at the beginning of each line. Then add this line at the start of both files.  
+Comment out all uncommented lines by adding a '#' at the beginning of each line. Then add this line at the start of this file.  
 `deb http://au.archive.ubuntu.com/ubuntu artful main universe`
 
 Run these commands to install openjdk-9 (our boot jdk):
@@ -53,7 +52,7 @@ Test commands:
 gcc --version
 g++ --version
 ```
-They should show something like 7.2.something.
+They should show something like 7.something.something.
 
 
 
@@ -68,32 +67,12 @@ For https clone.
 
 ## 4th step: install cargo via rustup
 
-><small>adopted from [https://github.com/rust-lang-nursery/rustup.rs/issues/1085](https://github.com/rust-lang-nursery/rustup.rs/issues/1085) </small>
+Follow instructions from [https://www.rustup.rs](https://www.rustup.rs)
+>(visit the site from your linux system)
 
-First, run these commands as root:
-```
-RUSTUP_HOME=/opt/rust
-export RUSTUP_HOME
-CARGO_HOME=/opt/rust
-export CARGO_HOME
-curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path
-```
-Then, create a shell script `/usr/local/bin/rustc`
-
-Repeat it for all other executable files under ***/opt/rust/bin/***
-For example, I had to create the following files on my machine under ***/usr/local/bin*** directory:
-
-`cargo` &nbsp; `cargo-fmt` &nbsp; `rls` &nbsp; `rustc` &nbsp; `rustdoc` &nbsp; `rustfmt` &nbsp; `rust-gdb` &nbsp; `rust-lldb` &nbsp; `rustup`
-
-All the files will have the same content:
-```
-#!/bin/sh
-
-RUSTUP_HOME=/opt/rust exec /opt/rust/bin/${0##*/} "$@"
-```
-Run rustup show to see the installed toolchains. If you *don't find nightly* there, execute necessary command to add nightly. This command might help.
-
-`sudo rustup target add nightly-x86_64-unknown-linux-gnu`
+It should advise you to run `curl https://sh.rustup.rs -sSf | sh` and follow the onscreen instructions to install rustup.
+Run `rustup show` to see the installed toolchains.
+Execute `rustup install nightly` to install nightly toolchain.
 
 ## 5th step: Build
 It's the final step --- Go to the root directory of the project (openjdk directory). And run these commands to build for the first time.
