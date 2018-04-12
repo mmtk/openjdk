@@ -67,8 +67,8 @@ For https clone.
 
 ## 4th step: install cargo via rustup
 
-Follow instructions from [https://www.rustup.rs/](https://www.rustup.rs/)
-
+Follow instructions from [https://www.rustup.rs/](https://www.rustup.rs/) (visit the site from your linux system)
+It should advise you to run `curl https://sh.rustup.rs -sSf | sh` and follow the onscreen instructions to install rustup.
 Run `rustup show` to see the installed toolchains.
 Execute `rustup install nightly` to install nightly toolchain.
 
