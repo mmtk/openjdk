@@ -142,7 +142,7 @@ void oopDesc::set_klass_to_list_ptr(oop k) {
   }
 }
 
-oop oopDesc::list_ptr_from_klass() {
+oop oopDesc::list_ptr_from_klass() { //MMTk-pointer
   // This is only to be used during GC, for from-space objects.
   if (UseCompressedClassPointers) {
     return decode_heap_oop((narrowOop)_metadata._compressed_klass);
@@ -473,6 +473,8 @@ void oopDesc::ps_push_contents(PSPromotionManager* pm) {
 }
 #endif // INCLUDE_ALL_GCS
 
+
+//MMTk-pointer
 #define OOP_ITERATE_DEFN(OopClosureType, nv_suffix)                 \
                                                                     \
 void oopDesc::oop_iterate(OopClosureType* blk) {                    \

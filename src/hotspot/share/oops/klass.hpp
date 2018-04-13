@@ -66,7 +66,7 @@ class Klass : public Metadata {
   friend class VMStructs;
   friend class JVMCIVMStructs;
  protected:
-  // If you add a new field that points to any metaspace object, you
+  // If you add a new field that points to any metaspace object, you   //MMTk-pointer
   // must add this field to Klass::metaspace_pointers_do().
 
   // note: put frequently-used fields together at start of klass structure
