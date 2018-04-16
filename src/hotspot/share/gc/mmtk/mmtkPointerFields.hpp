@@ -22,6 +22,8 @@
  *
  */
 
+#ifdef DISABLE_THE_FILE
+
 #ifndef SHARE_VM_GC_PARALLEL_PSMARKSWEEP_HPP
 #define SHARE_VM_GC_PARALLEL_PSMARKSWEEP_HPP
 
@@ -89,3 +91,6 @@ class MMTkPointerFields : public MarkSweep {
 };
 
 #endif // SHARE_VM_GC_PARALLEL_PSMARKSWEEP_HPP
+
+
+#endif // DISABLE_THE_FILE

@@ -21,6 +21,7 @@
  * questions.
  *
  */
+#ifdef DISABLE_THE_FILE
 
 #include "precompiled.hpp"
 #include "aot/aotLoader.hpp"
@@ -30,7 +31,7 @@
 #include "code/codeCache.hpp"
 #include "gc/parallel/parallelScavengeHeap.hpp"
 #include "gc/parallel/psAdaptiveSizePolicy.hpp"
-#include "gc/mmtk/MMTkPointerFields.hpp"
+#include "gc/mmtk/mmtkPointerFields.hpp"
 #include "gc/parallel/psMarkSweep.hpp"
 #include "gc/parallel/psMarkSweepDecorator.hpp"
 #include "gc/parallel/psOldGen.hpp"
@@ -703,3 +704,5 @@ void PSMarkSweep::reset_millis_since_last_gc() {
   _time_of_last_gc = os::javaTimeNanos() / NANOSECS_PER_MILLISEC;
 }
 */
+
+#endif // DISABLE_THE_FILE
