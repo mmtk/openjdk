@@ -73,7 +73,7 @@ class Klass : public Metadata {
   // for better cache behavior (may not make much of a difference but sure won't hurt)
   enum { _primary_super_limit = 8 };
 
-  // The "layout helper" is a combined descriptor of object layout.
+  // The "layout helper" is a combined descriptor of object layout.  //MMTk-pointer : layout helper determines pointers
   // For klasses which are neither instance nor array, the value is zero.
   //
   // For instances, layout helper is a positive number, the instance size.
@@ -99,7 +99,7 @@ class Klass : public Metadata {
   //
   // Final note:  This comes first, immediately after C++ vtable,
   // because it is frequently queried.
-  jint        _layout_helper;
+  jint        _layout_helper;  //MMTk-pointer
 
   // The fields _super_check_offset, _secondary_super_cache, _secondary_supers
   // and _primary_supers all help make fast subtype checks.  See big discussion
@@ -616,7 +616,7 @@ protected:
   virtual void oop_pc_update_pointers(oop obj, ParCompactionManager* cm) = 0;
 #endif
 
-  // Iterators specialized to particular subtypes
+  // Iterators specialized to particular subtypes //mmtk-poiter
   // of ExtendedOopClosure, to avoid closure virtual calls.
 #define Klass_OOP_OOP_ITERATE_DECL(OopClosureType, nv_suffix)                                           \
   virtual void oop_oop_iterate##nv_suffix(oop obj, OopClosureType* closure) = 0;                        \
