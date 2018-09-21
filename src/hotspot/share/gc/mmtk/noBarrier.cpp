@@ -24,30 +24,29 @@
 
 #include "gc/mmtk/noBarrier.hpp"
 
+void NoBarrier::write_ref_array_work(MemRegion mr) {
+    guarantee(false, "NoBarrier::write_ref_arrey_work not supported");
+}
 
-   void NoBarrier::write_ref_array_work(MemRegion mr) {
-       guarantee(false, "NoBarrier::write_ref_arrey_work  not supported");
-   }
-
-   void NoBarrier::write_region_work(MemRegion mr) {
-       //guarantee(false, "NoBarrier::write_region_work not supported");
-   }
+void NoBarrier::write_region_work(MemRegion mr) {
+    //guarantee(false, "NoBarrier::write_region_work not supported");
+}
 
 
-  // Inform the BarrierSet that the the covered heap region that starts
-  // with "base" has been changed to have the given size (possibly from 0,
-  // for initialization.)
-   void NoBarrier::resize_covered_region(MemRegion new_region) {
-       guarantee(false, "NoBarrier::resize_covered_region not supported");
-   }
+// Inform the BarrierSet that the the covered heap region that starts
+// with "base" has been changed to have the given size (possibly from 0,
+// for initialization.)
+void NoBarrier::resize_covered_region(MemRegion new_region) {
+    guarantee(false, "NoBarrier::resize_covered_region not supported");
+}
 
-  // If the barrier set imposes any alignment restrictions on boundaries
-  // within the heap, this function tells whether they are met.
-   bool NoBarrier::is_aligned(HeapWord* addr) {
-       return true;
-   }
+// If the barrier set imposes any alignment restrictions on boundaries
+// within the heap, this function tells whether they are met.
+bool NoBarrier::is_aligned(HeapWord* addr) {
+    return true;
+}
 
-  // Print a description of the memory for the barrier set
-   void NoBarrier::print_on(outputStream* st) const {
+// Print a description of the memory for the barrier set
+void NoBarrier::print_on(outputStream* st) const {
 
-   }
+}

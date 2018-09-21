@@ -632,9 +632,9 @@ protected:
       assert(UseMMTk, "should use UseMMTk");
       return _mmtk_mutator;
   }
-  void set_mmtk_mutator(size_t thread_id) {
+  void set_mmtk_mutator() {
       assert(UseMMTk, "should use UseMMTk");
-      _mmtk_mutator = bind_mutator(thread_id);
+      _mmtk_mutator = bind_mutator((void*) current());
   }
 
   int     lgrp_id() const        { return _lgrp_id; }

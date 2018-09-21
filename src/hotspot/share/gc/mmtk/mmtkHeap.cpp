@@ -98,12 +98,12 @@ HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceed
     Thread* thread = Thread::current();
     // For mmtk support
     if(thread->mmtk_mutator()==NULL){
-        printf("Setting mutator for thread %p id: %u \n", thread, thread->self_raw_id());
-        thread->set_mmtk_mutator(thread->self_raw_id());
+        printf("Setting mutator for thread %p\n", thread);
+        thread->set_mmtk_mutator();
     }
     if(thread->mmtk_mutator()==(void*)(0xf1f1f1f1f1f1f1f1)){
-        printf("Setting mutator for thread %p id: %u \n", thread, thread->self_raw_id());
-        thread->set_mmtk_mutator(thread->self_raw_id());
+        printf("Setting mutator for thread %p\n", thread);
+        thread->set_mmtk_mutator();
     }
 
     void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
