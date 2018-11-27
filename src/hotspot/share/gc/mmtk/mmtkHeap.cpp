@@ -96,24 +96,19 @@ jint MMTkHeap::initialize() {
 HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) {
 
     Thread* thread = Thread::current();
-    // For mmtk support
-    if(thread->mmtk_mutator()==NULL){
-        printf("Setting mutator for thread %p\n", thread);
-        thread->set_mmtk_mutator();
-    }
-    if(thread->mmtk_mutator()==(void*)(0xf1f1f1f1f1f1f1f1)){
+    void* mutator = thread->mmtk_mutator();
+    
+    // FIXME: We should do this at thread initialization time
+    if (!mutator || (mutator == (void *)0xf1f1f1f1f1f1f1f1)){
         printf("Setting mutator for thread %p\n", thread);
         thread->set_mmtk_mutator();
     }
 
     void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
     HeapWord* obj = (HeapWord*) obj_ptr;
-    //printf("Allocated pointer obj_ptr %p obj %p \n", obj_ptr, obj);
-    if (obj != NULL) {
-        return obj;
-    }
-    // Otherwise...
-    return (HeapWord*) alloc_slow(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
+    
+    guarantee(obj, "MMTk gave us null!");
+    return obj;
 }
 
 void MMTkHeap::post_initialize() {
