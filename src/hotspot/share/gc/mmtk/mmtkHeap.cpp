@@ -59,7 +59,7 @@ jint MMTkHeap::initialize() {
     size_t mmtk_heap_size = heap_size;
     /*forcefully*/ //mmtk_heap_size = (1<<31) -1;
 
-    openjdk_gc_init(mmtk_upcalls, mmtk_heap_size);
+    openjdk_gc_init(&mmtk_upcalls, mmtk_heap_size);
 
     //ReservedSpace heap_rs = Universe::reserve_heap(mmtk_heap_size, _collector_policy->heap_alignment());
 
