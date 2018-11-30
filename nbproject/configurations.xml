@@ -383,6 +383,7 @@
               <df name="mmtk">
                 <in>mmtkArguments.cpp</in>
                 <in>mmtkHeap.cpp</in>
+                <in>mmtkUpcalls.hpp</in>
               </df>
               <df name="parallel">
                 <in>adjoiningGenerations.cpp</in>
@@ -5439,6 +5440,11 @@
             <Elem>THIS_FILE="parallelScavengeHeap.cpp"</Elem>
           </preprocessorList>
         </ccTool>
+      </item>
+      <item path="src/hotspot/share/gc/mmtk/mmtkUpcalls.hpp"
+            ex="false"
+            tool="3"
+            flavor2="0">
       </item>
       <item path="src/hotspot/share/gc/parallel/adjoiningGenerations.cpp"
             ex="false"
