@@ -40,7 +40,6 @@ static void mmtk_resume_mutators(void *tls) {
 }
 
 OpenJDK_Upcalls mmtk_upcalls = {
-    stop_all_mutators = mmtk_stop_all_mutators,
-    resume_mutators = mmtk_resume_mutators,
-}
-
+    mmtk_stop_all_mutators,
+    mmtk_resume_mutators,
+};
