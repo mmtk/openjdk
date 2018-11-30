@@ -29,7 +29,7 @@
  * Created on 30 November 2018, 5:45 PM
  */
 
-#include "../../../../../mmtk/api/mmtk.h"
+#include "mmtkUpcalls.hpp"
 
 static void mmtk_stop_all_mutators(void *tls) {
     

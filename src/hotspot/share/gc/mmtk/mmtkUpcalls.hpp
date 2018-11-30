@@ -33,7 +33,7 @@
 
 #include "../../../../../mmtk/api/mmtk.h"
 
-OpenJDK_Upcalls mmtk_upcalls;
+extern OpenJDK_Upcalls mmtk_upcalls;
 
 #endif /* MMTKUPCALLS_HPP */
 
