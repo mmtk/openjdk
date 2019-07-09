@@ -34,6 +34,7 @@
 #include "utilities/growableArray.hpp"
 #include "utilities/ostream.hpp"
 #include "gc/mmtk/mmtkMemoryPool.hpp"
+#include "memory/iterator.hpp"
 
 
 class GCMemoryManager;
@@ -47,14 +48,21 @@ class MMTkHeap : public CollectedHeap {
     GCMemoryManager* _mmtk_manager;
     HeapWord* _start;
     HeapWord* _end;
+    static MMTkHeap* _heap;
     
 private:
    // static mmtkGCTaskManager* _mmtk_gc_task_manager;
     
 
- public:
+public:
      
-  MMTkHeap(NoPolicy* policy) : CollectedHeap(), _collector_policy(policy) { }
+  MMTkHeap(NoPolicy* policy) : CollectedHeap(), _collector_policy(policy) {
+    _heap = this;
+  }
+
+  inline static MMTkHeap* heap() {
+    return _heap;
+  }
      
   static HeapWord* allocate_from_tlab(Klass* klass, Thread* thread, size_t size);
  
@@ -162,6 +170,7 @@ private:
 
   void post_initialize();
 
+  void scan_roots(OopClosure& cl);
 };
 
 

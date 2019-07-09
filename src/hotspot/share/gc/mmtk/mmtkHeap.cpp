@@ -33,12 +33,17 @@
 #include "runtime/handles.inline.hpp"
 #include "runtime/java.hpp"
 #include "runtime/vmThread.hpp"
+#include "runtime/thread.hpp"
 #include "services/memoryManager.hpp"
 #include "services/memTracker.hpp"
 #include "utilities/vmError.hpp"
 #include "../../../../../mmtk/api/mmtk.h"
 #include "gc/mmtk/mmtkgcTaskManager.hpp"
+#include "gc/shared/strongRootsScope.hpp"
 #include "mmtkUpcalls.hpp"
+#include "services/management.hpp"
+#include "aot/aotLoader.hpp"
+#include "classfile/stringTable.hpp"
 /*
 needed support from rust
 heap capacity
@@ -52,10 +57,12 @@ object iterator??!!
 //mmtkGCTaskManager* MMTkHeap::_mmtk_gc_task_manager = NULL;
 
 
+MMTkHeap* MMTkHeap::_heap = NULL;
+
 jint MMTkHeap::initialize() {
 
     const size_t heap_size = collector_policy()->max_heap_byte_size();
-    printf("policy max heap size %d, min heap size %d\n", heap_size, collector_policy()->min_heap_byte_size());
+    printf("policy max heap size %zu, min heap size %zu\n", heap_size, collector_policy()->min_heap_byte_size());
     size_t mmtk_heap_size = heap_size;
     /*forcefully*/ //mmtk_heap_size = (1<<31) -1;
 
@@ -88,8 +95,8 @@ jint MMTkHeap::initialize() {
 
     // Set up the GCTaskManager
     //  _mmtk_gc_task_manager = mmtkGCTaskManager::create(ParallelGCThreads);
-
-    printf("inside mmtkHeap.cpp after initialization with size %d\n", mmtk_heap_size);
+    enable_collection(0);
+    printf("inside mmtkHeap.cpp after initialization with size %zu\n", mmtk_heap_size);
     return JNI_OK;
 
 }
@@ -219,7 +226,8 @@ bool MMTkHeap::card_mark_must_follow_store() const { //OK
 }
 
 void MMTkHeap::collect(GCCause::Cause cause) {//later when gc is implemented in rust
-   guarantee(false, "collect not supported");
+   handle_user_collection_request(Thread::current()->mmtk_mutator());
+   // guarantee(false, "collect not supported");
 }
 
 // Perform a full collection
@@ -321,6 +329,50 @@ bool MMTkHeap::is_scavengable(oop obj) {return false;}
 // Heap verification
 void MMTkHeap::verify(VerifyOption option) {guarantee(false, "verify not supported");}
 
+void MMTkHeap::scan_roots(OopClosure& cl) {
+   CLDToOopClosure cld_cl(&cl, true);
+  ClassLoaderDataGraph::roots_cld_do(&cld_cl, &cld_cl);
+  // Only process code roots from thread stacks if we aren't visiting the entire CodeCache anyway
+//   CodeBlobToOopClosure* roots_from_code_p(&cl);
+  CodeBlobToOopClosure cb_cl(&cl, false);
+
+  bool is_parallel = false;
+  Threads::possibly_parallel_oops_do(is_parallel, &cl, &cb_cl);
+  Universe::oops_do(&cl);
+  JNIHandles::oops_do(&cl);
+  ObjectSynchronizer::oops_do(&cl);
+  Management::oops_do(&cl);
+  JvmtiExport::oops_do(&cl);
+  if (UseAOT) {
+    AOTLoader::oops_do(&cl);
+  }
+  SystemDictionary::roots_oops_do(&cl, &cl);
+
+//   if (!_process_strong_tasks->is_task_claimed(GCH_PS_CodeCache_oops_do)) {
+   //  if (so & SO_ScavengeCodeCache) {
+      // assert(code_roots != NULL, "must supply closure for code cache");
+
+      // We only visit parts of the CodeCache when scavenging.
+      // CodeCache::scavenge_root_nmethods_do(code_roots);
+   //  }
+   //  if (so & SO_AllCodeCache) {
+      assert(code_roots != NULL, "must supply closure for code cache");
+
+      // CMSCollector uses this to do intermediate-strength collections.
+      // We scan the entire code cache, since CodeCache::do_unloading is not called.
+      CodeCache::blobs_do(&cb_cl);
+   //  }
+    // Verify that the code cache contents are not subject to
+    // movement by a scavenging collection.
+   //  DEBUG_ONLY(CodeBlobToOopClosure assert_code_is_non_scavengable(&assert_is_non_scavengable_closure, !CodeBlobToOopClosure::FixRelocations));
+   //  DEBUG_ONLY(CodeCache::asserted_non_scavengable_nmethods_do(&assert_code_is_non_scavengable));
+//   }
+  if (is_parallel) {
+    StringTable::possibly_parallel_oops_do(&cl);
+  } else {
+    StringTable::oops_do(&cl);
+  }
+}
 
 /*
 * files with prints currently:

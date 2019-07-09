@@ -84,19 +84,22 @@ static bool timeout_error_printed = false;
 
 // Roll all threads forward to a safepoint and suspend them all
 void SafepointSynchronize::begin() {
+  printf("[SafepointSynchronize::begin] 0\n");
   EventSafepointBegin begin_event;
   Thread* myThread = Thread::current();
-  assert(myThread->is_VM_thread(), "Only VM thread may execute a safepoint");
+  printf("[SafepointSynchronize::begin] 1\n");
+  // assert(myThread->is_VM_thread(), "Only VM thread may execute a safepoint");
 
   if (PrintSafepointStatistics || PrintSafepointStatisticsTimeout > 0) {
     _safepoint_begin_time = os::javaTimeNanos();
     _ts_of_current_safepoint = tty->time_stamp().seconds();
   }
-
+printf("[SafepointSynchronize::begin] 2\n");
   Universe::heap()->safepoint_synchronize_begin();
 
   // By getting the Threads_lock, we assure that no threads are about to start or
   // exit. It is released again in SafepointSynchronize::end().
+  printf("[SafepointSynchronize::begin] 3\n");
   Threads_lock->lock();
 
   assert( _state == _not_synchronized, "trying to safepoint synchronize with wrong state");
@@ -104,11 +107,11 @@ void SafepointSynchronize::begin() {
   int nof_threads = Threads::number_of_threads();
 
   log_debug(safepoint)("Safepoint synchronization initiated. (%d threads)", nof_threads);
-
+printf("[SafepointSynchronize::begin] 4\n");
   RuntimeService::record_safepoint_begin();
-
+printf("[SafepointSynchronize::begin] 5\n");
   MutexLocker mu(Safepoint_lock);
-
+printf("[SafepointSynchronize::begin] 6\n");
   // Reset the count of active JNI critical threads
   _current_jni_active_count = 0;
 
@@ -129,7 +132,7 @@ void SafepointSynchronize::begin() {
   if (PrintSafepointStatistics || PrintSafepointStatisticsTimeout > 0) {
     deferred_initialize_stat();
   }
-
+printf("[SafepointSynchronize::begin] 7\n");
   // Begin the process of bringing the system to a safepoint.
   // Java threads can be in several different states and are
   // stopped by different mechanisms:
@@ -202,7 +205,7 @@ void SafepointSynchronize::begin() {
     // Consider using active_processor_count() ... but that call is expensive.
     int ncpus = os::processor_count() ;
     unsigned int iterations = 0;
-
+printf("[SafepointSynchronize::begin] 8\n");
     {
       JavaThreadIteratorWithHandle jtiwh;
 #ifdef ASSERT
@@ -218,6 +221,7 @@ void SafepointSynchronize::begin() {
 
       // Iterate through all threads until it have been determined how to stop them all at a safepoint
       int steps = 0 ;
+
       while(still_running > 0) {
         jtiwh.rewind();
         for (; JavaThread *cur = jtiwh.next(); ) {
@@ -347,13 +351,14 @@ void SafepointSynchronize::begin() {
       sync_event.commit();
     }
   } // EventSafepointStateSynchronization destroyed here.
-
+printf("[SafepointSynchronize::begin] 9\n");
   // wait until all threads are stopped
   {
     EventSafepointWaitBlocked wait_blocked_event;
     int initial_waiting_to_block = _waiting_to_block;
 
     while (_waiting_to_block > 0) {
+      printf("Waiting for %d thread(s) to block\n", _waiting_to_block);
       log_debug(safepoint)("Waiting for %d thread(s) to block", _waiting_to_block);
       if (!SafepointTimeout || timeout_error_printed) {
         Safepoint_lock->wait(true);  // true, means with no safepoint checks
@@ -396,7 +401,7 @@ void SafepointSynchronize::begin() {
       wait_blocked_event.commit();
     }
   } // EventSafepointWaitBlocked
-
+printf("[SafepointSynchronize::begin] 10\n");
 #ifdef ASSERT
   // Make sure all the threads were visited.
   for (JavaThreadIteratorWithHandle jtiwh; JavaThread *cur = jtiwh.next(); ) {
@@ -408,12 +413,12 @@ void SafepointSynchronize::begin() {
   GCLocker::set_jni_lock_count(_current_jni_active_count);
 
   log_info(safepoint)("Entering safepoint region: %s", VMThread::vm_safepoint_description());
-
+printf("[SafepointSynchronize::begin] 11\n");
   RuntimeService::record_safepoint_synchronized();
   if (PrintSafepointStatistics) {
     update_statistics_on_sync_end(os::javaTimeNanos());
   }
-
+printf("[SafepointSynchronize::begin] 12\n");
   // Call stuff that needs to be run when a safepoint is just about to be completed
   {
     EventSafepointCleanup cleanup_event;
@@ -423,7 +428,7 @@ void SafepointSynchronize::begin() {
       cleanup_event.commit();
     }
   }
-
+printf("[SafepointSynchronize::begin] 13\n");
   if (PrintSafepointStatistics) {
     // Record how much time spend on the above cleanup tasks
     update_statistics_on_cleanup_end(os::javaTimeNanos());
@@ -434,6 +439,7 @@ void SafepointSynchronize::begin() {
     begin_event.set_jniCriticalThreadCount(_current_jni_active_count);
     begin_event.commit();
   }
+  printf("[SafepointSynchronize::begin] 14\n");
 }
 
 // Wake up all threads, so they are ready to resume execution after the safepoint

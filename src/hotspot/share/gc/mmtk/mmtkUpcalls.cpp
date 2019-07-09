@@ -30,16 +30,92 @@
  */
 
 #include "mmtkUpcalls.hpp"
+#include "mmtkRootsClosure.hpp"
+#include "mmtkHeap.hpp"
+#include "vmMMTkOperations.hpp"
+#include "contextThread.hpp"
+#include "mmtkCollectorThread.hpp"
+#include "runtime/os.hpp"
+#include "runtime/vmThread.hpp"
+#include "runtime/safepoint.hpp"
+#include "runtime/mutexLocker.hpp"
+#include "runtime/thread.hpp"
 
 static void mmtk_stop_all_mutators(void *tls) {
-    
+    printf("mmtk_stop_all_mutators start\n");
+    SafepointSynchronize::begin();
+    printf("mmtk_stop_all_mutators end\n");
 }
 
 static void mmtk_resume_mutators(void *tls) {
-    
+    printf("mmtk_resume_mutators start\n");
+    SafepointSynchronize::end();
+    Heap_lock->notify_all();
+    printf("mmtk_resume_mutators end\n");
+}
+
+static void mmtk_spawn_collector_thread(void* tls, void* ctx) {
+    if (ctx == NULL) {
+        MMTkContextThread* t = new MMTkContextThread();
+        if (!os::create_thread(t, os::pgc_thread)) {
+            printf("Failed to create thread");
+            guarantee(false, "panic");
+        }
+        os::start_thread(t);
+    } else {
+        MMTkCollectorThread* t = new MMTkCollectorThread(ctx);
+        if (!os::create_thread(t, os::pgc_thread)) {
+            printf("Failed to create thread");
+            guarantee(false, "panic");
+        }
+        os::start_thread(t);
+    }
+}
+
+static void mmtk_block_for_gc() {
+    printf("mmtk_block_for_gc start\n");
+    Heap_lock->wait();
+    printf("mmtk_block_for_gc end\n");
+}
+
+static void* mmtk_active_collector(void* tls) {
+    return ((MMTkCollectorThread*) tls)->get_context();
+}
+
+static JavaThread* _thread_cursor = NULL;
+
+static void* mmtk_get_next_mutator() {
+    if (_thread_cursor == NULL) {
+        _thread_cursor = Threads::get_thread_list();
+    } else {
+        _thread_cursor = _thread_cursor->next();
+    }
+    return _thread_cursor == NULL ? NULL : _thread_cursor->mmtk_mutator();
+}
+
+static void mmtk_reset_mutator_iterator() {
+    _thread_cursor = NULL;
+}
+
+
+static void mmtk_compute_thread_roots(void* trace, void* tls) {
+    MMTkRootsClosure cl(trace);
+    MMTkHeap::heap()->scan_roots(cl);
+}
+
+static void mmtk_scan_object(void* trace, void* object, void* tls) {
+    MMTkScanObjectClosure cl(trace);
+    ((oop) object)->oop_iterate(&cl);
 }
 
 OpenJDK_Upcalls mmtk_upcalls = {
     mmtk_stop_all_mutators,
     mmtk_resume_mutators,
+    mmtk_spawn_collector_thread,
+    mmtk_block_for_gc,
+    mmtk_active_collector,
+    mmtk_get_next_mutator,
+    mmtk_reset_mutator_iterator,
+    mmtk_compute_thread_roots,
+    mmtk_scan_object,
 };
