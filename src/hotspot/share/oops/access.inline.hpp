@@ -35,6 +35,7 @@
 #include "oops/accessBackend.inline.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/orderAccess.inline.hpp"
+#include "../../../../mmtk/api/mmtk.h"
 
 // This file outlines the template pipeline of accesses going through the Access
 // API. There are essentially 5 steps for each access.
@@ -171,6 +172,7 @@ namespace AccessInternal {
     }
 
     static oop oop_access_barrier(oop base, ptrdiff_t offset) {
+      validate_ref((void*) base);
       return GCBarrierType::oop_load_in_heap_at(base, offset);
     }
   };

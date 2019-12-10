@@ -40,6 +40,7 @@
 #include "../../../../../mmtk/api/mmtk.h"
 #include "gc/mmtk/mmtkgcTaskManager.hpp"
 #include "gc/shared/strongRootsScope.hpp"
+#include "gc/shared/weakProcessor.hpp"
 #include "mmtkUpcalls.hpp"
 #include "services/management.hpp"
 #include "aot/aotLoader.hpp"
@@ -114,6 +115,8 @@ HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceed
 
     void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
     HeapWord* obj = (HeapWord*) obj_ptr;
+    alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
+    post_alloc(Thread::current()->mmtk_mutator(), obj_ptr, NULL, size*HeapWordSize, 0);
     
     guarantee(obj, "MMTk gave us null!");
     return obj;
@@ -330,48 +333,46 @@ bool MMTkHeap::is_scavengable(oop obj) {return false;}
 void MMTkHeap::verify(VerifyOption option) {guarantee(false, "verify not supported");}
 
 void MMTkHeap::scan_roots(OopClosure& cl) {
-   CLDToOopClosure cld_cl(&cl, true);
-  ClassLoaderDataGraph::roots_cld_do(&cld_cl, &cld_cl);
-  // Only process code roots from thread stacks if we aren't visiting the entire CodeCache anyway
-//   CodeBlobToOopClosure* roots_from_code_p(&cl);
-  CodeBlobToOopClosure cb_cl(&cl, false);
+   // Need to tell runtime we are about to walk the roots with 1 thread
+   StrongRootsScope scope(1);
+   
+   // 1. Java roots
+   CLDToOopClosure cld_cl(&cl, false);
+   CodeBlobToOopClosure cb_cl(&cl, false);
 
-  bool is_parallel = false;
-  Threads::possibly_parallel_oops_do(is_parallel, &cl, &cb_cl);
-  Universe::oops_do(&cl);
-  JNIHandles::oops_do(&cl);
-  ObjectSynchronizer::oops_do(&cl);
-  Management::oops_do(&cl);
-  JvmtiExport::oops_do(&cl);
-  if (UseAOT) {
-    AOTLoader::oops_do(&cl);
-  }
-  SystemDictionary::roots_oops_do(&cl, &cl);
+   // ClassLoaderDataGraph::cld_do(&cld_cl);
+   ClassLoaderDataGraph::cld_do(&cld_cl);
+  
+   bool is_parallel = false;
+   Threads::possibly_parallel_oops_do(is_parallel, &cl, &cb_cl);
+  
+   // 2. VM Roots
+   Universe::oops_do(&cl);
+   JNIHandles::oops_do(&cl);
+   ObjectSynchronizer::oops_do(&cl);
+   Management::oops_do(&cl);
+   JvmtiExport::oops_do(&cl);
+   if (UseAOT) {
+      AOTLoader::oops_do(&cl);
+   }
+   SystemDictionary::roots_oops_do(&cl, &cl);
 
-//   if (!_process_strong_tasks->is_task_claimed(GCH_PS_CodeCache_oops_do)) {
-   //  if (so & SO_ScavengeCodeCache) {
-      // assert(code_roots != NULL, "must supply closure for code cache");
-
-      // We only visit parts of the CodeCache when scavenging.
-      // CodeCache::scavenge_root_nmethods_do(code_roots);
-   //  }
-   //  if (so & SO_AllCodeCache) {
+   // 3. Code objects
+   {
       assert(code_roots != NULL, "must supply closure for code cache");
-
-      // CMSCollector uses this to do intermediate-strength collections.
-      // We scan the entire code cache, since CodeCache::do_unloading is not called.
+      MutexLockerEx lock(CodeCache_lock, Mutex::_no_safepoint_check_flag);
       CodeCache::blobs_do(&cb_cl);
-   //  }
-    // Verify that the code cache contents are not subject to
-    // movement by a scavenging collection.
-   //  DEBUG_ONLY(CodeBlobToOopClosure assert_code_is_non_scavengable(&assert_is_non_scavengable_closure, !CodeBlobToOopClosure::FixRelocations));
-   //  DEBUG_ONLY(CodeCache::asserted_non_scavengable_nmethods_do(&assert_code_is_non_scavengable));
-//   }
-  if (is_parallel) {
-    StringTable::possibly_parallel_oops_do(&cl);
-  } else {
-    StringTable::oops_do(&cl);
-  }
+   }
+
+   // 4. Strings
+   if (is_parallel) {
+      StringTable::possibly_parallel_oops_do(&cl);
+   } else {
+      StringTable::oops_do(&cl);
+   }
+ 
+   // 5. Weak refs (really needed???)
+   WeakProcessor::oops_do(&cl);
 }
 
 /*

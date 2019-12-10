@@ -41,16 +41,24 @@
 #include "runtime/mutexLocker.hpp"
 #include "runtime/thread.hpp"
 
+static bool gcInProgress = false;
+
 static void mmtk_stop_all_mutators(void *tls) {
     printf("mmtk_stop_all_mutators start\n");
     SafepointSynchronize::begin();
+    Heap_lock->lock();
+    gcInProgress = true;
+    Heap_lock->unlock();
     printf("mmtk_stop_all_mutators end\n");
 }
 
 static void mmtk_resume_mutators(void *tls) {
     printf("mmtk_resume_mutators start\n");
     SafepointSynchronize::end();
+    Heap_lock->lock();
+    gcInProgress = false;
     Heap_lock->notify_all();
+    Heap_lock->unlock();
     printf("mmtk_resume_mutators end\n");
 }
 
@@ -74,8 +82,13 @@ static void mmtk_spawn_collector_thread(void* tls, void* ctx) {
 
 static void mmtk_block_for_gc() {
     printf("mmtk_block_for_gc start\n");
-    Heap_lock->wait();
+    do {
+        Heap_lock->lock();
+        Heap_lock->wait();
+        Heap_lock->unlock();
+    } while (gcInProgress);
     printf("mmtk_block_for_gc end\n");
+    // exit(-1);
 }
 
 static void* mmtk_active_collector(void* tls) {
@@ -108,6 +121,16 @@ static void mmtk_scan_object(void* trace, void* object, void* tls) {
     ((oop) object)->oop_iterate(&cl);
 }
 
+static void mmtk_dump_object(void* object) {
+    oop o = (oop) object;
+
+    // o->print();
+    o->print_value();
+    printf("\n");
+    
+    // o->print_address();
+}
+
 OpenJDK_Upcalls mmtk_upcalls = {
     mmtk_stop_all_mutators,
     mmtk_resume_mutators,
@@ -118,4 +141,5 @@ OpenJDK_Upcalls mmtk_upcalls = {
     mmtk_reset_mutator_iterator,
     mmtk_compute_thread_roots,
     mmtk_scan_object,
+    mmtk_dump_object,
 };

@@ -28,6 +28,7 @@
 #include "oops/access.hpp"
 #include "oops/accessBackend.hpp"
 #include "oops/oop.inline.hpp"
+#include "../../../../mmtk/api/mmtk.h"
 
 template <DecoratorSet decorators>
 template <DecoratorSet idecorators, typename T>
@@ -79,6 +80,7 @@ inline T RawAccessBarrier<decorators>::oop_load(void* addr) {
 template <DecoratorSet decorators>
 template <typename T>
 inline T RawAccessBarrier<decorators>::oop_load_at(oop base, ptrdiff_t offset) {
+  // validate_ref((void*) base);
   return oop_load<T>(field_addr(base, offset));
 }
 

@@ -20,11 +20,15 @@ public:
   MMTkRootsClosure(void* trace): _trace(trace) {}
 
   virtual void do_oop(oop* p)       { do_oop_work(p); }
-  virtual void do_oop(narrowOop* p) { do_oop_work(p); }
+  virtual void do_oop(narrowOop* p) {
+    printf("narrowoop root %p -> %d %p %p\n", (void*) p, *p, *((void**) p), (void*) oopDesc::load_decode_heap_oop(p));
+    do_oop_work(p);
+  }
 };
 
 class MMTkScanObjectClosure : public ExtendedOopClosure {
   void* _trace;
+  CLDToOopClosure follow_cld_closure;
 
   template <class T>
   void do_oop_work(T* p) {
@@ -33,10 +37,26 @@ class MMTkScanObjectClosure : public ExtendedOopClosure {
   }
 
 public:
-  MMTkScanObjectClosure(void* trace): _trace(trace) {}
+  MMTkScanObjectClosure(void* trace): _trace(trace), follow_cld_closure(this, false) {}
 
   virtual void do_oop(oop* p)       { do_oop_work(p); }
-  virtual void do_oop(narrowOop* p) { do_oop_work(p); }
+  virtual void do_oop(narrowOop* p) {
+    printf("narrowoop edge %p -> %d %p %p\n", (void*) p, *p, *((void**) p), (void*) oopDesc::load_decode_heap_oop(p));
+    do_oop_work(p);
+  }
+  
+  virtual bool do_metadata() {
+    return true;
+  }
+
+  virtual void do_klass(Klass* k) {
+    oop op = k->klass_holder();
+    trace_root_object(_trace, op);
+  }
+
+  virtual void do_cld(ClassLoaderData* cld) {
+    follow_cld_closure.do_cld(cld);
+  }
 };
 
 // class MMTkCLDClosure : public CLDClosure {
