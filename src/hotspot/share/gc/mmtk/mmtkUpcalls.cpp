@@ -40,6 +40,7 @@
 #include "runtime/safepoint.hpp"
 #include "runtime/mutexLocker.hpp"
 #include "runtime/thread.hpp"
+#include "runtime/threadSMR.hpp"
 
 static bool gcInProgress = false;
 
@@ -98,12 +99,21 @@ static void* mmtk_active_collector(void* tls) {
 static JavaThread* _thread_cursor = NULL;
 
 static void* mmtk_get_next_mutator() {
+    // printf("number_of_threads %d\n", Threads::number_of_threads());
+    // printf("number_of_non_daemon_threads %d\n", Threads::number_of_non_daemon_threads());
     if (_thread_cursor == NULL) {
         _thread_cursor = Threads::get_thread_list();
     } else {
         _thread_cursor = _thread_cursor->next();
     }
-    return _thread_cursor == NULL ? NULL : _thread_cursor->mmtk_mutator();
+    printf("_thread_cursor %p -> %p\n", _thread_cursor, _thread_cursor == NULL ? NULL : _thread_cursor->mmtk_mutator());
+    if (_thread_cursor == NULL) return NULL;
+    void* mutator = _thread_cursor->mmtk_mutator();
+    if (!mutator || (mutator == (void *)0xf1f1f1f1f1f1f1f1)){
+        printf("Setting mutator for thread %p\n", _thread_cursor);
+        _thread_cursor->set_mmtk_mutator();
+    }
+    return _thread_cursor->mmtk_mutator();
 }
 
 static void mmtk_reset_mutator_iterator() {

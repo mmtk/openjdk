@@ -605,7 +605,7 @@ protected:
   int              _lgrp_id;
   
   // Support for mmtk allocation.
-  MMTk_Mutator _mmtk_mutator;
+  MMTk_Mutator _mmtk_mutator = (MMTk_Mutator) NULL;
 
   volatile void** polling_page_addr() { return &_polling_page; }
 
