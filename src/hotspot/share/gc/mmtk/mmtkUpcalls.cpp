@@ -47,9 +47,9 @@ static bool gcInProgress = false;
 static void mmtk_stop_all_mutators(void *tls) {
     printf("mmtk_stop_all_mutators start\n");
     SafepointSynchronize::begin();
-    Heap_lock->lock();
+    // Heap_lock->lock();
     gcInProgress = true;
-    Heap_lock->unlock();
+    // Heap_lock->unlock();
     printf("mmtk_stop_all_mutators end\n");
 }
 
