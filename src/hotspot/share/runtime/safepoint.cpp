@@ -84,6 +84,7 @@ static bool timeout_error_printed = false;
 
 // Roll all threads forward to a safepoint and suspend them all
 void SafepointSynchronize::begin() {
+  printf("> SafepointSynchronize::begin()\n");
   EventSafepointBegin begin_event;
   Thread* myThread = Thread::current();
   // assert(myThread->is_VM_thread(), "Only VM thread may execute a safepoint");
@@ -110,6 +111,7 @@ void SafepointSynchronize::begin() {
 
   // Set number of threads to wait for, before we initiate the callbacks
   _waiting_to_block = nof_threads;
+  printf("_waiting_to_block = %d\n", nof_threads);
   TryingToBlock     = 0 ;
   int still_running = nof_threads;
 
@@ -425,6 +427,8 @@ void SafepointSynchronize::begin() {
     begin_event.set_jniCriticalThreadCount(_current_jni_active_count);
     begin_event.commit();
   }
+  
+  printf("> SafepointSynchronize::begin() FINISH\n");
 }
 
 // Wake up all threads, so they are ready to resume execution after the safepoint
@@ -743,6 +747,7 @@ void SafepointSynchronize::check_for_lazy_critical_native(JavaThread *thread, Ja
 // Implementation of Safepoint callback point
 
 void SafepointSynchronize::block(JavaThread *thread) {
+  // printf("block %p\n", thread);
   assert(thread != NULL, "thread must be set");
   assert(thread->is_Java_thread(), "not a Java thread");
 

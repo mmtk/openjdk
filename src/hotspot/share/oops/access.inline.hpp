@@ -172,7 +172,6 @@ namespace AccessInternal {
     }
 
     static oop oop_access_barrier(oop base, ptrdiff_t offset) {
-      validate_ref((void*) base);
       return GCBarrierType::oop_load_in_heap_at(base, offset);
     }
   };

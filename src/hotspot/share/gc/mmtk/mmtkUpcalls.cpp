@@ -82,7 +82,7 @@ static void mmtk_spawn_collector_thread(void* tls, void* ctx) {
 }
 
 static void mmtk_block_for_gc() {
-    printf("mmtk_block_for_gc start\n");
+    printf("mmtk_block_for_gc start %p\n", Thread::current());
     do {
         Heap_lock->lock();
         Heap_lock->wait();
@@ -106,7 +106,7 @@ static void* mmtk_get_next_mutator() {
     } else {
         _thread_cursor = _thread_cursor->next();
     }
-    printf("_thread_cursor %p -> %p\n", _thread_cursor, _thread_cursor == NULL ? NULL : _thread_cursor->mmtk_mutator());
+    // printf("_thread_cursor %p -> %p\n", _thread_cursor, _thread_cursor == NULL ? NULL : _thread_cursor->mmtk_mutator());
     if (_thread_cursor == NULL) return NULL;
     void* mutator = _thread_cursor->mmtk_mutator();
     if (!mutator || (mutator == (void *)0xf1f1f1f1f1f1f1f1)){
