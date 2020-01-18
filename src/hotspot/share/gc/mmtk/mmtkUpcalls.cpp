@@ -141,6 +141,11 @@ static void mmtk_dump_object(void* object) {
     // o->print_address();
 }
 
+static size_t mmtk_get_object_size(void* object) {
+    oop o = (oop) object;
+    return o->size() * HeapWordSize;
+}
+
 OpenJDK_Upcalls mmtk_upcalls = {
     mmtk_stop_all_mutators,
     mmtk_resume_mutators,
@@ -152,4 +157,5 @@ OpenJDK_Upcalls mmtk_upcalls = {
     mmtk_compute_thread_roots,
     mmtk_scan_object,
     mmtk_dump_object,
+    mmtk_get_object_size,
 };

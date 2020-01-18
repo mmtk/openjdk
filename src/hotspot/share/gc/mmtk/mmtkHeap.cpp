@@ -113,9 +113,9 @@ HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceed
         thread->set_mmtk_mutator();
     }
 
-   if (!is_valid_mutator(Thread::current()->mmtk_mutator())) {
-      printf("JDK: Invalid mutator, T %p, M %p\n", Thread::current(), Thread::current()->mmtk_mutator());
-   }
+   // if (!is_valid_mutator(Thread::current()->mmtk_mutator())) {
+   //    printf("JDK: Invalid mutator, T %p, M %p\n", Thread::current(), Thread::current()->mmtk_mutator());
+   // }
     void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
     HeapWord* obj = (HeapWord*) obj_ptr;
    //  alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
