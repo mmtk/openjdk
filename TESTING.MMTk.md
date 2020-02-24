@@ -22,73 +22,58 @@ using `rustup`:
 $ rustup show
 ```
 
-## Getting the code
+## Building (debug)
 
-Clone OpenJDK and MMTk from GitLab:
+`<DEBUG_LEVEL>` can be one of `release`, `fastdebug`, `slowdebug` and `optimized`.
 
-```console
-$ git clone -b mmtk --recursive git@gitlab.anu.edu.au:mmtk/openjdk.git
+```bash
+cd openjdk
+# Build MMTk
+cd mmtk
+cargo +nightly build
+cd ..
+# Build OpenJDK
+bash configure --disable-warnings-as-errors --with-debug-level=<DEBUG_LEVEL>
+CONF=linux-x86_64-normal-server-<DEBUG_LEVEL> make
+# JDK is at `build/linux-x86_64-normal-server-<DEBUG_LEVEL>/jdk`
 ```
 
-This assumes you already have SSH keys set up. If not, clone with HTTPS:
+## Building (release)
 
-```console
-$ git clone -b mmtk --recursive https://gitlab.anu.edu.au/mmtk/openjdk.git
+```bash
+cd openjdk
+# Build MMTk
+cd mmtk
+cargo +nightly build --release
+cd ..
+# Build OpenJDK
+bash configure --disable-warnings-as-errors
+CONF=linux-x86_64-normal-server-release make
+# JDK is at `build/linux-x86_64-normal-server-release/jdk`
 ```
-
-## Building
-
-```console
-$ cd openjdk
-```
-
-Build MMTk first:
-
-```console
-$ cd mmtk
-$ cargo +nightly build --release
-$ cd ..
-```
-
-Then build OpenJDK:
-
-```console
-$ sh configure --with-boot-jdk=../openjdk-10.0.2 --disable-warnings-as-errors CC=gcc-7 CXX=g++-7
-$ make
-```
-
-If all goes well, you should have a working JDK in
-`build/linux-x86_64-normal-server-release/jdk`.
 
 ## Testing
 
-You should be able to test OpenJDK using the `javac` and `java` binaries in 
-`build/linux-x86_64-normal-server-release/jdk/bin`. In order for the binaries to
-find `libmmtk`, you will need to set `LD_LIBRARY_PATH` to include
-`$PWD/mmtk/target/release`. Also, to enable MMTk, pass `-XX:+UseMMTk` to `java`.
+1. `java` binary is at `build/linux-x86_64-normal-server-<DEBUG_LEVEL>/jdk/bin/java`.
+2. Set env `LD_LIBRARY_PATH` to include `$PWD/mmtk/target/debug` (or `$PWD/mmtk/target/release` if openjdk is built with debug level `release`).
+3. To enable MMTk, pass `-XX:+UseMMTk -XX:-UseCompressedOops` to `java`.
 
-```console
-$ echo > HelloWorldApp.java << EOF
-class
-HelloWorldApp
-{
-        public static void
-        main(String[] args)
-        {
-                System.out.println("Hello World!");
-        }
-}
-EOF
-$ build/linux-x86_64-normal-server-release/jdk/bin/javac HelloWorldApp.java
-$ build/linux-x86_64-normal-server-release/jdk/bin/java -XX:+UseMMTk HelloWorldApp
-policy max heap size 2009071616, min heap size 6815744
-start: 0x60000000, end: 0xb0000000
-inside mmtkHeap.cpp after initialization with size 2009071616
-Setting mutator for thread 0x7fd854011000 id: 0 
-Setting mutator for thread 0x7fd85409a000 id: 0 
-Setting mutator for thread 0x7fd8540b4000 id: 0 
-Hello World!
+e.g.:
+
+* If `DEBUG_LEVEL` = `fastdebug`, `slowdebug` or `optimized`:
+```bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/mmtk/target/debug
+build/linux-x86_64-normal-server-fastdebug/jdk/bin/java -XX:+UseMMTk -XX:-UseCompressedOops HelloWorld
+```
+
+* If `DEBUG_LEVEL` = `release`:
+```bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/mmtk/target/release
+build/linux-x86_64-normal-server-release/jdk/bin/java -XX:+UseMMTk -XX:-UseCompressedOops HelloWorld
 ```
 
 > Original instructions by Abdullah Al Mamun and Tanveer Hannan
+>
 > Updated Sep 2018 by Felix Friedlander
+> 
+> Updated Feb 2020 by Wenyu Zhao
