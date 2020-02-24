@@ -316,6 +316,7 @@ void MMTkHeap::scan_static_roots(OopClosure& cl) {
 }
 
 void MMTkHeap::scan_global_roots(OopClosure& cl) {
+   ResourceMark rm;
    CodeBlobToOopClosure cb_cl(&cl, false);
    CLDToOopClosure cld_cl(&cl, false);
 
@@ -342,6 +343,7 @@ void MMTkHeap::scan_global_roots(OopClosure& cl) {
 }
 
 void MMTkHeap::scan_thread_roots(OopClosure& cl) {
+   ResourceMark rm;
    {
       MutexLockerEx lock(Debug1_lock, Mutex::_no_safepoint_check_flag);
       if (_root_tasks->all_tasks_completed(_n_workers) == 0) {
@@ -376,7 +378,6 @@ void MMTkHeap::scan_roots(OopClosure& cl) {
    if (UseAOT) AOTLoader::oops_do(&cl);
    SystemDictionary::roots_oops_do(&cl, &cl);
    {
-      assert(code_roots != NULL, "must supply closure for code cache");
       MutexLockerEx lock(CodeCache_lock, Mutex::_no_safepoint_check_flag);
       CodeCache::blobs_do(&cb_cl);
    }

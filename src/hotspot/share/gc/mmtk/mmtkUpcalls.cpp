@@ -54,10 +54,10 @@ static void mmtk_stop_all_mutators(void *tls) {
 
 static void mmtk_resume_mutators(void *tls) {
     SafepointSynchronize::end();
-    Heap_lock->lock();
+    MMTkHeap::heap()->gc_lock()->lock_without_safepoint_check();
     gcInProgress = false;
-    Heap_lock->notify_all();
-    Heap_lock->unlock();
+    MMTkHeap::heap()->gc_lock()->notify_all();
+    MMTkHeap::heap()->gc_lock()->unlock();
 }
 
 static void mmtk_spawn_collector_thread(void* tls, void* ctx) {
@@ -81,9 +81,9 @@ static void mmtk_spawn_collector_thread(void* tls, void* ctx) {
 
 static void mmtk_block_for_gc() {
     do {
-        Heap_lock->lock();
-        Heap_lock->wait();
-        Heap_lock->unlock();
+        MMTkHeap::heap()->gc_lock()->lock();
+        MMTkHeap::heap()->gc_lock()->wait();
+        MMTkHeap::heap()->gc_lock()->unlock();
     } while (gcInProgress);
 }
 

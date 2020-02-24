@@ -154,7 +154,12 @@ AC_DEFUN_ONCE([LIB_SETUP_LIBRARIES],
 
   JDKLIB_LIBS="$BASIC_JDKLIB_LIBS"
   JDKEXE_LIBS=""
-  JVM_LIBS="$BASIC_JVM_LIBS -L${TOPDIR}/mmtk/target/debug -lmmtk"
+  if test "x$DEBUG_LEVEL" = xrelease; then
+    BASIC_JVM_LIBS="$BASIC_JVM_LIBS -L${TOPDIR}/mmtk/target/release -lmmtk"
+  else
+    BASIC_JVM_LIBS="$BASIC_JVM_LIBS -L${TOPDIR}/mmtk/target/debug -lmmtk"
+  fi
+  JVM_LIBS="$BASIC_JVM_LIBS"
   OPENJDK_BUILD_JDKLIB_LIBS="$BASIC_JDKLIB_LIBS"
   OPENJDK_BUILD_JVM_LIBS="$BASIC_JVM_LIBS"
 

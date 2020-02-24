@@ -636,7 +636,6 @@ protected:
   }
   void* mmtk_collector() {
       assert(UseMMTk, "should use UseMMTk");
-      assert(_mmtk_collector != NULL);
       return _mmtk_collector;
   }
 

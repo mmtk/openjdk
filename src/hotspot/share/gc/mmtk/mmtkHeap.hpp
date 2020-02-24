@@ -52,6 +52,7 @@ class MMTkHeap : public CollectedHeap {
     static MMTkHeap* _heap;
     SubTasksDone* _root_tasks;
     size_t _n_workers;
+    Monitor* _gc_lock;
 
   enum mmtk_strong_roots_tasks {
     MMTk_Universe_oops_do,
@@ -74,7 +75,7 @@ private:
 
 public:
      
-  MMTkHeap(NoPolicy* policy) : CollectedHeap(), _collector_policy(policy), _root_tasks(new SubTasksDone(MMTk_NumElements)), _n_workers(0) {
+  MMTkHeap(NoPolicy* policy) : CollectedHeap(), _collector_policy(policy), _root_tasks(new SubTasksDone(MMTk_NumElements)), _n_workers(0), _gc_lock(new Monitor(Mutex::safepoint, "MMTkHeap::_gc_lock", true, Monitor::_safepoint_check_sometimes)) {
     _heap = this;
   }
 
@@ -116,7 +117,10 @@ public:
   void new_collector_thread() {
     _n_workers += 1;
   }
-  
+
+  Monitor* gc_lock() {
+    return _gc_lock;
+  }
   
   bool can_elide_tlab_store_barriers() const;
 
