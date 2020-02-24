@@ -606,6 +606,7 @@ protected:
   
   // Support for mmtk allocation.
   MMTk_Mutator _mmtk_mutator = (MMTk_Mutator) NULL;
+  void* _mmtk_collector = (void*) NULL;
 
   volatile void** polling_page_addr() { return &_polling_page; }
 
@@ -632,9 +633,10 @@ protected:
       assert(UseMMTk, "should use UseMMTk");
       return _mmtk_mutator;
   }
-  void set_mmtk_mutator() {
+  void* mmtk_collector() {
       assert(UseMMTk, "should use UseMMTk");
-      _mmtk_mutator = bind_mutator((void*) current());
+      assert(_mmtk_collector != NULL);
+      return _mmtk_collector;
   }
 
   int     lgrp_id() const        { return _lgrp_id; }

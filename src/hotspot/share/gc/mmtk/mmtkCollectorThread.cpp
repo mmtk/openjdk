@@ -25,12 +25,11 @@
 #include "mmtkCollectorThread.hpp"
 #include "../../../../../mmtk/api/mmtk.h"
 
-MMTkCollectorThread::MMTkCollectorThread(void* context): NamedThread(), _context(context) {
+MMTkCollectorThread::MMTkCollectorThread(void* context): NamedThread() {
+  _mmtk_collector = context;
   set_name("Collector Thread");
 }
 
 void MMTkCollectorThread::run() {
-  printf("Start Controller Context Thread\n");
-  start_worker((void*) this, _context);
-  printf("Controller Context Thread Started\n");
+  start_worker((void*) this, _mmtk_collector);
 }

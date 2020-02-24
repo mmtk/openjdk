@@ -316,6 +316,7 @@ void Thread::initialize_thread_current() {
 #endif
   assert(ThreadLocalStorage::thread() == NULL, "ThreadLocalStorage::thread already initialized");
   ThreadLocalStorage::set_thread(this);
+  if (UseMMTk) _mmtk_mutator = bind_mutator((void*) current());
   assert(Thread::current() == ThreadLocalStorage::thread(), "TLS mismatch!");
 }
 

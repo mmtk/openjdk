@@ -30,7 +30,5 @@ MMTkContextThread::MMTkContextThread() : NamedThread() {
 }
 
 void MMTkContextThread::run() {
-  printf("Start Controller Context Thread\n");
   start_control_collector((void*) this);
-  printf("Controller Context Thread Started\n");
 }

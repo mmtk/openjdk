@@ -97,7 +97,6 @@ jint MMTkHeap::initialize() {
     // Set up the GCTaskManager
     //  _mmtk_gc_task_manager = mmtkGCTaskManager::create(ParallelGCThreads);
     enable_collection(0);
-    printf("inside mmtkHeap.cpp after initialization with size %zu\n", mmtk_heap_size);
     return JNI_OK;
 
 }
@@ -108,18 +107,11 @@ HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceed
     void* mutator = thread->mmtk_mutator();
     
     // FIXME: We should do this at thread initialization time
-    if (!mutator || (mutator == (void *)0xf1f1f1f1f1f1f1f1)){
-        printf("Setting mutator for thread %p\n", thread);
-        thread->set_mmtk_mutator();
-    }
+    assert(mutator && (mutator != (void *)0xf1f1f1f1f1f1f1f1), "Uninitialized mutator");
 
-   // if (!is_valid_mutator(Thread::current()->mmtk_mutator())) {
-   //    printf("JDK: Invalid mutator, T %p, M %p\n", Thread::current(), Thread::current()->mmtk_mutator());
-   // }
-    void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
+    void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size << LogHeapWordSize, HeapWordSize, 0, 0);
     HeapWord* obj = (HeapWord*) obj_ptr;
-   //  alloc(Thread::current()->mmtk_mutator(), size*HeapWordSize, 1, 0, 0);
-    post_alloc(Thread::current()->mmtk_mutator(), obj_ptr, NULL, size*HeapWordSize, 0);
+    post_alloc(Thread::current()->mmtk_mutator(), obj_ptr, NULL, size << LogHeapWordSize, 0);
     
     guarantee(obj, "MMTk gave us null!");
     return obj;
@@ -335,46 +327,81 @@ bool MMTkHeap::is_scavengable(oop obj) {return false;}
 // Heap verification
 void MMTkHeap::verify(VerifyOption option) {guarantee(false, "verify not supported");}
 
+void MMTkHeap::scan_static_roots(OopClosure& cl) {
+}
+
+void MMTkHeap::scan_global_roots(OopClosure& cl) {
+   CodeBlobToOopClosure cb_cl(&cl, false);
+   CLDToOopClosure cld_cl(&cl, false);
+
+   if (!_root_tasks->is_task_claimed(MMTk_Universe_oops_do)) Universe::oops_do(&cl);
+   if (!_root_tasks->is_task_claimed(MMTk_JNIHandles_oops_do)) JNIHandles::oops_do(&cl);
+   if (!_root_tasks->is_task_claimed(MMTk_ObjectSynchronizer_oops_do)) ObjectSynchronizer::oops_do(&cl);
+   if (!_root_tasks->is_task_claimed(MMTk_Management_oops_do)) Management::oops_do(&cl);
+   if (!_root_tasks->is_task_claimed(MMTk_jvmti_oops_do)) JvmtiExport::oops_do(&cl);
+   if (UseAOT && !_root_tasks->is_task_claimed(MMTk_aot_oops_do)) AOTLoader::oops_do(&cl);
+   if (!_root_tasks->is_task_claimed(MMTk_SystemDictionary_oops_do)) SystemDictionary::roots_oops_do(&cl, &cl);
+   if (!_root_tasks->is_task_claimed(MMTk_CodeCache_oops_do)) CodeCache::blobs_do(&cb_cl);
+
+   StringTable::possibly_parallel_oops_do(&cl);
+
+   // if (!_root_tasks->is_task_claimed(MMTk_ClassLoaderDataGraph_oops_do)) ClassLoaderDataGraph::roots_cld_do(&cld_cl, &cld_cl);
+   if (!_root_tasks->is_task_claimed(MMTk_ClassLoaderDataGraph_oops_do)) ClassLoaderDataGraph::cld_do(&cld_cl);
+
+   if (!_root_tasks->is_task_claimed(MMTk_WeakProcessor_oops_do))  WeakProcessor::oops_do(&cl); // (really needed???)
+
+   if (_root_tasks->all_tasks_completed(_n_workers) + 1 == _n_workers) {
+      nmethod::oops_do_marking_epilogue();
+      Threads::assert_all_threads_claimed();
+   }
+}
+
+void MMTkHeap::scan_thread_roots(OopClosure& cl) {
+   {
+      MutexLockerEx lock(Debug1_lock, Mutex::_no_safepoint_check_flag);
+      if (_root_tasks->all_tasks_completed(_n_workers) == 0) {
+         nmethod::oops_do_marking_prologue();
+         Threads::change_thread_claim_parity();
+         StringTable::clear_parallel_claimed_index();
+      }
+   }
+   CodeBlobToOopClosure cb_cl(&cl, false);
+   Threads::possibly_parallel_oops_do(true, &cl, &cb_cl);
+}
+
 void MMTkHeap::scan_roots(OopClosure& cl) {
    // Need to tell runtime we are about to walk the roots with 1 thread
    StrongRootsScope scope(1);
-   
-   // 1. Java roots
    CLDToOopClosure cld_cl(&cl, false);
    CodeBlobToOopClosure cb_cl(&cl, false);
 
-   // ClassLoaderDataGraph::cld_do(&cld_cl);
+   // Static Roots
    ClassLoaderDataGraph::cld_do(&cld_cl);
-  
+
+   // Thread Roots
    bool is_parallel = false;
    Threads::possibly_parallel_oops_do(is_parallel, &cl, &cb_cl);
   
-   // 2. VM Roots
+   // Global Roots
    Universe::oops_do(&cl);
    JNIHandles::oops_do(&cl);
    ObjectSynchronizer::oops_do(&cl);
    Management::oops_do(&cl);
    JvmtiExport::oops_do(&cl);
-   if (UseAOT) {
-      AOTLoader::oops_do(&cl);
-   }
+   if (UseAOT) AOTLoader::oops_do(&cl);
    SystemDictionary::roots_oops_do(&cl, &cl);
-
-   // 3. Code objects
    {
       assert(code_roots != NULL, "must supply closure for code cache");
       MutexLockerEx lock(CodeCache_lock, Mutex::_no_safepoint_check_flag);
       CodeCache::blobs_do(&cb_cl);
    }
-
-   // 4. Strings
    if (is_parallel) {
       StringTable::possibly_parallel_oops_do(&cl);
    } else {
       StringTable::oops_do(&cl);
    }
  
-   // 5. Weak refs (really needed???)
+   // Weak refs (really needed???)
    WeakProcessor::oops_do(&cl);
 }
 

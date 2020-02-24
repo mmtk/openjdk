@@ -35,6 +35,7 @@
 #include "utilities/ostream.hpp"
 #include "gc/mmtk/mmtkMemoryPool.hpp"
 #include "memory/iterator.hpp"
+#include "gc/shared/workgroup.hpp"
 
 
 class GCMemoryManager;
@@ -49,6 +50,23 @@ class MMTkHeap : public CollectedHeap {
     HeapWord* _start;
     HeapWord* _end;
     static MMTkHeap* _heap;
+    SubTasksDone* _root_tasks;
+    size_t _n_workers;
+
+  enum mmtk_strong_roots_tasks {
+    MMTk_Universe_oops_do,
+    MMTk_JNIHandles_oops_do,
+    MMTk_ObjectSynchronizer_oops_do,
+    MMTk_Management_oops_do,
+    MMTk_SystemDictionary_oops_do,
+    MMTk_ClassLoaderDataGraph_oops_do,
+    MMTk_jvmti_oops_do,
+    MMTk_CodeCache_oops_do,
+    MMTk_aot_oops_do,
+    MMTk_WeakProcessor_oops_do,
+    // Leave this one last.
+    MMTk_NumElements
+  };
     
 private:
    // static mmtkGCTaskManager* _mmtk_gc_task_manager;
@@ -56,7 +74,7 @@ private:
 
 public:
      
-  MMTkHeap(NoPolicy* policy) : CollectedHeap(), _collector_policy(policy) {
+  MMTkHeap(NoPolicy* policy) : CollectedHeap(), _collector_policy(policy), _root_tasks(new SubTasksDone(MMTk_NumElements)), _n_workers(0) {
     _heap = this;
   }
 
@@ -95,6 +113,9 @@ public:
   // The amount of used space for thread-local allocation buffers for the given thread.
   size_t tlab_used(Thread *thr) const;
   
+  void new_collector_thread() {
+    _n_workers += 1;
+  }
   
   
   bool can_elide_tlab_store_barriers() const;
@@ -171,6 +192,10 @@ public:
   void post_initialize();
 
   void scan_roots(OopClosure& cl);
+
+  void scan_static_roots(OopClosure& cl);
+  void scan_global_roots(OopClosure& cl);
+  void scan_thread_roots(OopClosure& cl);
 };
 
 
