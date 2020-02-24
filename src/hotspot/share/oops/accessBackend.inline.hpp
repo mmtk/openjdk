@@ -28,7 +28,6 @@
 #include "oops/access.hpp"
 #include "oops/accessBackend.hpp"
 #include "oops/oop.inline.hpp"
-#include "../../../../mmtk/api/mmtk.h"
 
 template <DecoratorSet decorators>
 template <DecoratorSet idecorators, typename T>

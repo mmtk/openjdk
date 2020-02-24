@@ -86,7 +86,7 @@ jint MMTkHeap::initialize() {
 
     _start = (HeapWord*) starting_heap_address();
     _end = (HeapWord*) last_heap_address();
-    printf("start: %p, end: %p\n", _start, _end);
+   //  printf("start: %p, end: %p\n", _start, _end);
 
     initialize_reserved_region(_start, _end);
 

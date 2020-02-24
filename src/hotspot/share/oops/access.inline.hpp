@@ -35,7 +35,6 @@
 #include "oops/accessBackend.inline.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/orderAccess.inline.hpp"
-#include "../../../../mmtk/api/mmtk.h"
 
 // This file outlines the template pipeline of accesses going through the Access
 // API. There are essentially 5 steps for each access.
