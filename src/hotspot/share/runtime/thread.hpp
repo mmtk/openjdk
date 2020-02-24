@@ -57,6 +57,7 @@
 #endif
 
 #include "../../../../mmtk/api/mmtk.h"
+#include "gc/mmtk/mmtkMutator.hpp"
 
 
 class ThreadSafepointState;
@@ -605,7 +606,7 @@ protected:
   int              _lgrp_id;
   
   // Support for mmtk allocation.
-  MMTk_Mutator _mmtk_mutator = (MMTk_Mutator) NULL;
+  MMTkMutatorContext* _mmtk_mutator = (MMTkMutatorContext*) NULL;
   void* _mmtk_collector = (void*) NULL;
 
   volatile void** polling_page_addr() { return &_polling_page; }
@@ -629,7 +630,7 @@ protected:
       _self_raw_id = value;
   }
   // For mmtk support
-  MMTk_Mutator mmtk_mutator() {
+  MMTkMutatorContext* mmtk_mutator() {
       assert(UseMMTk, "should use UseMMTk");
       return _mmtk_mutator;
   }

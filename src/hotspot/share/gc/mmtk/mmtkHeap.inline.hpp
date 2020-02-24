@@ -26,7 +26,14 @@
 #define SHARE_VM_GC_MMTK_MMTKHEAP_INLINE_HPP
 
 #include "gc/mmtk/mmtkHeap.hpp"
+#include "gc/mmtk/mmtkMutator.hpp"
 
-
+HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) {
+    MMTkMutatorContext* thread = Thread::current()->mmtk_mutator();
+    HeapWord* obj = thread->alloc(size << LogHeapWordSize);
+   //  post_alloc(Thread::current()->mmtk_mutator(), obj_ptr, NULL, size << LogHeapWordSize, 0);
+    // guarantee(obj, "MMTk gave us null!");
+    return obj;
+}
 
 #endif // SHARE_VM_GC_MMTK_MMTKHEAP_INLINE_HPP

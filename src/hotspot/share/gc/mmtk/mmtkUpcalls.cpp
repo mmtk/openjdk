@@ -92,7 +92,7 @@ static void* mmtk_active_collector(void* tls) {
 }
 
 static void* mmtk_get_mmtk_mutator(void* tls) {
-    return ((Thread*) tls)->mmtk_mutator();
+    return (void*) ((Thread*) tls)->mmtk_mutator();
 }
 
 static bool mmtk_is_mutator(void* tls) {
@@ -109,9 +109,7 @@ static void* mmtk_get_next_mutator() {
     }
     // printf("_thread_cursor %p -> %p\n", _thread_cursor, _thread_cursor == NULL ? NULL : _thread_cursor->mmtk_mutator());
     if (_thread_cursor == NULL) return NULL;
-    void* mutator = _thread_cursor->mmtk_mutator();
-    assert(mutator && (mutator != (void *)0xf1f1f1f1f1f1f1f1), "Uninitialized mutator");
-    return _thread_cursor->mmtk_mutator();
+    return (void*) _thread_cursor->mmtk_mutator();
 }
 
 static void mmtk_reset_mutator_iterator() {

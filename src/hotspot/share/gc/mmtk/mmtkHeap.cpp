@@ -39,6 +39,7 @@
 #include "utilities/vmError.hpp"
 #include "../../../../../mmtk/api/mmtk.h"
 #include "gc/mmtk/mmtkgcTaskManager.hpp"
+#include "gc/mmtk/mmtkMutator.hpp"
 #include "gc/shared/strongRootsScope.hpp"
 #include "gc/shared/weakProcessor.hpp"
 #include "mmtkUpcalls.hpp"
@@ -99,22 +100,6 @@ jint MMTkHeap::initialize() {
     enable_collection(0);
     return JNI_OK;
 
-}
-
-HeapWord* MMTkHeap::mem_allocate(size_t size, bool* gc_overhead_limit_was_exceeded) {
-
-    Thread* thread = Thread::current();
-    void* mutator = thread->mmtk_mutator();
-    
-    // FIXME: We should do this at thread initialization time
-    assert(mutator && (mutator != (void *)0xf1f1f1f1f1f1f1f1), "Uninitialized mutator");
-
-    void* obj_ptr = alloc(Thread::current()->mmtk_mutator(), size << LogHeapWordSize, HeapWordSize, 0, 0);
-    HeapWord* obj = (HeapWord*) obj_ptr;
-    post_alloc(Thread::current()->mmtk_mutator(), obj_ptr, NULL, size << LogHeapWordSize, 0);
-    
-    guarantee(obj, "MMTk gave us null!");
-    return obj;
 }
 
 void MMTkHeap::post_initialize() {
@@ -224,7 +209,7 @@ bool MMTkHeap::card_mark_must_follow_store() const { //OK
 }
 
 void MMTkHeap::collect(GCCause::Cause cause) {//later when gc is implemented in rust
-   handle_user_collection_request(Thread::current()->mmtk_mutator());
+   handle_user_collection_request((MMTk_Mutator) Thread::current()->mmtk_mutator());
    // guarantee(false, "collect not supported");
 }
 
