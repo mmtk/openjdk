@@ -55,20 +55,20 @@ CONF=linux-x86_64-normal-server-release make
 ## Testing
 
 1. `java` binary is at `build/linux-x86_64-normal-server-<DEBUG_LEVEL>/jdk/bin/java`.
-2. Set env `LD_LIBRARY_PATH` to include `$PWD/mmtk/target/debug` (or `$PWD/mmtk/target/release` if openjdk is built with debug level `release`).
+2. Set env `LD_LIBRARY_PATH` to include `$PWD/mmtk/vmbindings/openjdk/target/debug` (or `$PWD/mmtk/vmbindings/openjdk/target/release` if openjdk is built with debug level `release`).
 3. To enable MMTk, pass `-XX:+UseMMTk -XX:-UseCompressedOops` to `java`.
 
 e.g.:
 
 * If `DEBUG_LEVEL` = `fastdebug`, `slowdebug` or `optimized`:
 ```bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/mmtk/target/debug
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/mmtk/vmbindings/openjdk/target/debug
 build/linux-x86_64-normal-server-fastdebug/jdk/bin/java -XX:+UseMMTk -XX:-UseCompressedOops HelloWorld
 ```
 
 * If `DEBUG_LEVEL` = `release`:
 ```bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/mmtk/target/release
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/mmtk/vmbindings/openjdk/target/release
 build/linux-x86_64-normal-server-release/jdk/bin/java -XX:+UseMMTk -XX:-UseCompressedOops HelloWorld
 ```
 
