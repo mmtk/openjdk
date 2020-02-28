@@ -50,13 +50,18 @@ public:
   }
 
   virtual void do_klass(Klass* k) {
-    oop op = k->klass_holder();
-    trace_root_object(_trace, op);
+  //  follow_cld_closure.do_cld(k->class_loader_data());
+    // oop op = k->klass_holder();
+    // oop new_op = (oop) trace_root_object(_trace, op);
+    // guarantee(new_op == op, "trace_root_object returned a different value %p -> %p", op, new_op);
   }
 
   virtual void do_cld(ClassLoaderData* cld) {
     follow_cld_closure.do_cld(cld);
   }
+
+  virtual ReferenceIterationMode reference_iteration_mode() { return DO_FIELDS; }
+  virtual bool idempotent() { return true; }
 };
 
 // class MMTkCLDClosure : public CLDClosure {
