@@ -1,4 +1,0 @@
-[submodule "mmtk"]
-	path = mmtk
-	url = ../mmtk.git
-	branch = master
