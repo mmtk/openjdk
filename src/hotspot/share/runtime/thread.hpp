@@ -56,7 +56,7 @@
 # include "stack_zero.hpp"
 #endif
 
-#include "../../../../mmtk/api/mmtk.h"
+#include "../../../../mmtk/mmtk/api/mmtk.h"
 #include "gc/mmtk/mmtkMutator.hpp"
 
 
