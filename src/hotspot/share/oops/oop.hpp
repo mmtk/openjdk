@@ -104,7 +104,7 @@ class oopDesc {
   // to be able to figure out the size of an object knowing its klass.
   inline int size_given_klass(Klass* klass);
 
-  // type test operations (inlined in oop.inline.hpp) //MMTK-pointer
+  // type test operations (inlined in oop.inline.hpp)
   inline bool is_instance()            const;
   inline bool is_array()               const;
   inline bool is_objArray()            const;

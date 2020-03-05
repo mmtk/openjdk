@@ -150,7 +150,6 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, T
   result = Universe::heap()->mem_allocate(size,
                                           &gc_overhead_limit_was_exceeded);
   if (result != NULL) {
-
     NOT_PRODUCT(Universe::heap()->
       check_for_non_bad_heap_word_value(result, size));
     assert(!HAS_PENDING_EXCEPTION,
@@ -159,11 +158,8 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, T
 
     AllocTracer::send_allocation_outside_tlab(klass, result, size * HeapWordSize, THREAD);
 
-   // /*Debug*/ if(UseMMTk) printf("inside collectedHeap.inline.hpp, allocated at %x size %u \n", result, size);
-
     return result;
   }
-  /*Debug*/ if(UseMMTk) printf("inside collectedHeap.inline.hpp, couldn't allocate \n");
 
   if (!gc_overhead_limit_was_exceeded) {
     // -XX:+HeapDumpOnOutOfMemoryError and -XX:OnOutOfMemoryError support
@@ -201,7 +197,7 @@ HeapWord* CollectedHeap::allocate_from_tlab(Klass* klass, Thread* thread, size_t
 
   HeapWord* obj = thread->tlab().allocate(size);
   if (obj != NULL) {
-      return obj;
+    return obj;
   }
   // Otherwise...
   return allocate_from_tlab_slow(klass, thread, size);

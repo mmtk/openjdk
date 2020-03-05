@@ -97,15 +97,15 @@ class MarkSweep : AllStatic {
   static uint _total_invocations;
 
   // Traversal stacks used during phase1
-  static Stack<oop, mtGC>                      _marking_stack;   //mmtkRoots
-  static Stack<ObjArrayTask, mtGC>             _objarray_stack;  //mmtkRoots
+  static Stack<oop, mtGC>                      _marking_stack;
+  static Stack<ObjArrayTask, mtGC>             _objarray_stack;
 
   // Space for storing/restoring mark word
-  static Stack<markOop, mtGC>                  _preserved_mark_stack;//mmtkRoots
-  static Stack<oop, mtGC>                      _preserved_oop_stack;//mmtkRoots
+  static Stack<markOop, mtGC>                  _preserved_mark_stack;
+  static Stack<oop, mtGC>                      _preserved_oop_stack;
   static size_t                          _preserved_count;
   static size_t                          _preserved_count_max;
-  static PreservedMark*                  _preserved_marks;//mmtkRoots
+  static PreservedMark*                  _preserved_marks;
 
   // Reference processing (used in ...follow_contents)
   static ReferenceProcessor*             _ref_processor;

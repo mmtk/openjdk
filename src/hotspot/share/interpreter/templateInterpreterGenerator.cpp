@@ -54,7 +54,6 @@ static const BasicType types[Interpreter::number_of_result_handlers] = {
 };
 
 void TemplateInterpreterGenerator::generate_all() {
-    
   { CodeletMark cm(_masm, "slow signature handler");
     AbstractInterpreter::_slow_signature_handler = generate_slow_signature_handler();
   }
@@ -63,7 +62,6 @@ void TemplateInterpreterGenerator::generate_all() {
     _unimplemented_bytecode    = generate_error_exit("unimplemented bytecode");
     _illegal_bytecode_sequence = generate_error_exit("illegal bytecode sequence - method not verified");
   }
-  
 
 #ifndef PRODUCT
   if (TraceBytecodes) {
@@ -83,7 +81,6 @@ void TemplateInterpreterGenerator::generate_all() {
                  );
   }
 #endif // !PRODUCT
-  
 
   { CodeletMark cm(_masm, "return entry points");
     const int index_size = sizeof(u2);
@@ -139,7 +136,6 @@ void TemplateInterpreterGenerator::generate_all() {
                  );
   }
 
-
   { CodeletMark cm(_masm, "result handlers for native calls");
     // The various result converter stublets.
     int is_generated[Interpreter::number_of_result_handlers];
@@ -183,6 +179,8 @@ void TemplateInterpreterGenerator::generate_all() {
     Interpreter::_throw_NullPointerException_entry           = generate_exception_handler("java/lang/NullPointerException"          , NULL       );
     Interpreter::_throw_StackOverflowError_entry             = generate_StackOverflowError_handler();
   }
+
+
 
 #define method_entry(kind)                                              \
   { CodeletMark cm(_masm, "method entry point (kind = " #kind ")"); \
@@ -284,7 +282,6 @@ void TemplateInterpreterGenerator::set_entry_points_for_all_bytes() {
     }
   }
 }
-
 
 
 void TemplateInterpreterGenerator::set_safepoints_for_all_bytes() {

@@ -229,7 +229,6 @@ static void do_oop_store(InterpreterMacroAssembler* _masm,
         __ store_heap_oop(obj, val);
       }
       break;
-        
     default      :
       ShouldNotReachHere();
 

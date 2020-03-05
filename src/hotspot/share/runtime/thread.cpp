@@ -3592,7 +3592,6 @@ void Threads::initialize_jsr292_core_classes(TRAPS) {
 }
 
 jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
-    
   extern void JDK_Version_init();
 
   // Preinitialize version info.
@@ -3946,6 +3945,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
     MetaspaceShared::preload_and_dump(CHECK_JNI_ERR);
     ShouldNotReachHere();
   }
+
   return JNI_OK;
 }
 

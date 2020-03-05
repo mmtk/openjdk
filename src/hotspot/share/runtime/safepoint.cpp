@@ -129,7 +129,7 @@ void SafepointSynchronize::begin() {
   if (PrintSafepointStatistics || PrintSafepointStatisticsTimeout > 0) {
     deferred_initialize_stat();
   }
-  
+
   // Begin the process of bringing the system to a safepoint.
   // Java threads can be in several different states and are
   // stopped by different mechanisms:

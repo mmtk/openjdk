@@ -41,9 +41,11 @@ void TemplateInterpreter::initialize() {
   // assertions
   assert((int)Bytecodes::number_of_codes <= (int)DispatchTable::length,
          "dispatch table too small");
-  
+
   AbstractInterpreter::initialize();
+
   TemplateTable::initialize();
+
   // generate interpreter
   { ResourceMark rm;
     TraceTime timer("Interpreter generation", TRACETIME_LOG(Info, startuptime));
@@ -55,12 +57,12 @@ void TemplateInterpreter::initialize() {
     // Free the unused memory not occupied by the interpreter and the stubs
     _code->deallocate_unused_tail();
   }
-  
+
   if (PrintInterpreter) {
     ResourceMark rm;
     print();
   }
-  
+
   // initialize dispatch table
   _active_table = _normal_table;
 }
@@ -84,7 +86,7 @@ EntryPoint::EntryPoint() {
 
 
 EntryPoint::EntryPoint(address bentry, address zentry, address centry, address sentry, address aentry, address ientry, address lentry, address fentry, address dentry, address ventry) {
-    assert(number_of_states == 10, "check the code below");
+  assert(number_of_states == 10, "check the code below");
   _entry[btos] = bentry;
   _entry[ztos] = zentry;
   _entry[ctos] = centry;

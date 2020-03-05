@@ -69,8 +69,6 @@ ReservedSpace::ReservedSpace(size_t size, size_t alignment,
   initialize(size, alignment, large, NULL, executable);
 }
 
-//initialize(size_t size, size_t alignment, bool large, char* requested_address, bool executable) 
-
 // Helper method
 static void unmap_or_release_memory(char* base, size_t size, bool is_file_mapped) {
   if (is_file_mapped) {
@@ -221,7 +219,7 @@ void ReservedSpace::initialize(size_t size, size_t alignment, bool large,
 
 
 ReservedSpace::ReservedSpace(char* base, size_t size, size_t alignment,
-                             bool special, bool executable) { //mmtkreservedheap
+                             bool special, bool executable) {
   assert((size % os::vm_allocation_granularity()) == 0,
          "size not allocation aligned");
   _base = base;
@@ -609,7 +607,7 @@ ReservedHeapSpace::ReservedHeapSpace(size_t size, size_t alignment, bool large, 
   }
 
   if (heap_allocation_directory != NULL) {
-    _fd_for_heap = os::create_file_for_heap(heap_allocation_directory); //mmtkreservespace
+    _fd_for_heap = os::create_file_for_heap(heap_allocation_directory);
     if (_fd_for_heap == -1) {
       vm_exit_during_initialization(
         err_msg("Could not create file for Heap at location %s", heap_allocation_directory));

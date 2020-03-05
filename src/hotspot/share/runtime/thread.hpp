@@ -626,9 +626,7 @@ protected:
   }
 
   uintptr_t self_raw_id()                    { return _self_raw_id; }
-  void      set_self_raw_id(uintptr_t value) { 
-      _self_raw_id = value;
-  }
+  void      set_self_raw_id(uintptr_t value) { _self_raw_id = value; }
   // For mmtk support
   MMTkMutatorContext* mmtk_mutator() {
       assert(UseMMTk, "should use UseMMTk");

@@ -165,6 +165,7 @@ jint init_globals() {
   if (PrintFlagsFinal || PrintFlagsRanges) {
     CommandLineFlags::printFlags(tty, false, PrintFlagsRanges);
   }
+
   return JNI_OK;
 }
 

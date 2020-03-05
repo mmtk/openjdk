@@ -29,7 +29,7 @@
 
 // ReservedSpace is a data structure for reserving a contiguous address range.
 
-class ReservedSpace VALUE_OBJ_CLASS_SPEC { //mmtkreserveheap
+class ReservedSpace VALUE_OBJ_CLASS_SPEC {
   friend class VMStructs;
  protected:
   char*  _base;
@@ -146,10 +146,10 @@ class VirtualSpace VALUE_OBJ_CLASS_SPEC {
 
   // The entire space has been committed and pinned in memory, no
   // os::commit_memory() or os::uncommit_memory().
-  bool _special; //mmtkreserveheap
+  bool _special;
 
   // Need to know if commit should be executable.
-  bool   _executable; //mmtkreserveheap
+  bool   _executable;
 
   // MPSS Support
   // Each virtualspace region has a lower, middle, and upper region.

@@ -768,6 +768,7 @@ void InterpreterRuntime::resolve_invoke(JavaThread* thread, Bytecodes::Code byte
     Bytecode_invoke call(m, last_frame.bci());
     Symbol* signature = call.signature();
     receiver = Handle(thread, last_frame.callee_receiver(signature));
+
     assert(Universe::heap()->is_in_reserved_or_null(receiver()),
            "sanity check");
     assert(receiver.is_null() ||

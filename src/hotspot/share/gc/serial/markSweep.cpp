@@ -61,7 +61,7 @@ MarkAndPushClosure            MarkSweep::mark_and_push_closure;
 CLDToOopClosure               MarkSweep::follow_cld_closure(&mark_and_push_closure);
 CLDToOopClosure               MarkSweep::adjust_cld_closure(&adjust_pointer_closure);
 
-inline void MarkSweep::mark_object(oop obj) { //mmtkroot path trace 1.7
+inline void MarkSweep::mark_object(oop obj) {
   // some marks may contain information we need to preserve so we store them away
   // and overwrite the mark.  We'll restore it at the end of markSweep.
   markOop mark = obj->mark();
@@ -72,7 +72,7 @@ inline void MarkSweep::mark_object(oop obj) { //mmtkroot path trace 1.7
   }
 }
 
-template <class T> inline void MarkSweep::mark_and_push(T* p) { //mmtkroot path trace 1.6
+template <class T> inline void MarkSweep::mark_and_push(T* p) {
   T heap_oop = oopDesc::load_heap_oop(p);
   if (!oopDesc::is_null(heap_oop)) {
     oop obj = oopDesc::decode_heap_oop_not_null(heap_oop);
@@ -83,7 +83,7 @@ template <class T> inline void MarkSweep::mark_and_push(T* p) { //mmtkroot path 
   }
 }
 
-inline void MarkSweep::follow_klass(Klass* klass) {//mmtkroot path trace 1.5
+inline void MarkSweep::follow_klass(Klass* klass) {
   oop op = klass->klass_holder();
   MarkSweep::mark_and_push(&op);
 }
@@ -113,7 +113,7 @@ void MarkSweep::push_objarray(oop obj, size_t index) {
   _objarray_stack.push(task);
 }
 
-inline void MarkSweep::follow_array(objArrayOop array) {//mmtkroot path trace 1.4
+inline void MarkSweep::follow_array(objArrayOop array) {
   MarkSweep::follow_klass(array->klass());
   // Don't push empty arrays to avoid unnecessary work.
   if (array->length() > 0) {
@@ -121,7 +121,7 @@ inline void MarkSweep::follow_array(objArrayOop array) {//mmtkroot path trace 1.
   }
 }
 
-inline void MarkSweep::follow_object(oop obj) {  //mmtkroot path trace 3
+inline void MarkSweep::follow_object(oop obj) {
   assert(obj->is_gc_marked(), "should be marked");
   if (obj->is_objArray()) {
     // Handle object arrays explicitly to allow them to
@@ -147,10 +147,11 @@ void MarkSweep::follow_array_chunk(objArrayOop array, int index) {
   }
 }
 
-void MarkSweep::follow_stack() {//mmtkroot path trace 2
+void MarkSweep::follow_stack() {
   do {
     while (!_marking_stack.is_empty()) {
-      oop obj = _marking_stack.pop();      assert (obj->is_gc_marked(), "p must be marked");
+      oop obj = _marking_stack.pop();
+      assert (obj->is_gc_marked(), "p must be marked");
       follow_object(obj);
     }
     // Process ObjArrays one at a time to avoid marking stack bloat.
@@ -165,7 +166,7 @@ MarkSweep::FollowStackClosure MarkSweep::follow_stack_closure;
 
 void MarkSweep::FollowStackClosure::do_void() { follow_stack(); }
 
-template <class T> inline void MarkSweep::follow_root(T* p) {//mmtkRoots 
+template <class T> inline void MarkSweep::follow_root(T* p) {
   assert(!Universe::heap()->is_in_reserved(p),
          "roots shouldn't be things within the heap");
   T heap_oop = oopDesc::load_heap_oop(p);
@@ -179,8 +180,8 @@ template <class T> inline void MarkSweep::follow_root(T* p) {//mmtkRoots
   follow_stack();
 }
 
-void MarkSweep::FollowRootClosure::do_oop(oop* p)       { follow_root(p); }//mmtkRoots
-void MarkSweep::FollowRootClosure::do_oop(narrowOop* p) { follow_root(p); }//mmtkRoots
+void MarkSweep::FollowRootClosure::do_oop(oop* p)       { follow_root(p); }
+void MarkSweep::FollowRootClosure::do_oop(narrowOop* p) { follow_root(p); }
 
 void PreservedMark::adjust_pointer() {
   MarkSweep::adjust_pointer(&_obj);

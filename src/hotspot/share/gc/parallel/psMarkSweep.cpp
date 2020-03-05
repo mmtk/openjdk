@@ -508,17 +508,10 @@ void PSMarkSweep::mark_sweep_phase1(bool clear_all_softrefs) {
   ParallelScavengeHeap* heap = ParallelScavengeHeap::heap();
 
   // Need to clear claim bits before the tracing starts.
-  ClassLoaderDataGraph::clear_claimed_marks(); 
-  // true if claimed, for example during GC traces.
-  // To avoid applying oop closure more than once.  _claimed = 0;
- 
-  
-  
-  
+  ClassLoaderDataGraph::clear_claimed_marks();
 
   // General strong roots.
-  //Roots are to be dircted from here.
-  { 
+  {
     ParallelScavengeHeap::ParStrongRootsScope psrs;
     Universe::oops_do(mark_and_push_closure());
     JNIHandles::oops_do(mark_and_push_closure());   // Global (strong) JNI handles
@@ -535,7 +528,7 @@ void PSMarkSweep::mark_sweep_phase1(bool clear_all_softrefs) {
   }
 
   // Flush marking stack.
-  follow_stack();  // Empty marking stack.  //mmtkroot path trace 1
+  follow_stack();
 
   // Process reference objects found during marking
   {

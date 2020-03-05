@@ -307,6 +307,7 @@ void initialize_basic_type_klass(Klass* k, TRAPS) {
 
 void Universe::genesis(TRAPS) {
   ResourceMark rm;
+
   { FlagSetting fs(_bootstrapping, true);
 
     { MutexLocker mc(Compile_lock);
@@ -348,10 +349,12 @@ void Universe::genesis(TRAPS) {
     vmSymbols::initialize(CHECK);
 
     SystemDictionary::initialize(CHECK);
+
     Klass* ok = SystemDictionary::Object_klass();
 
     _the_null_string            = StringTable::intern("null", CHECK);
     _the_min_jint_string       = StringTable::intern("-2147483648", CHECK);
+
 #if INCLUDE_CDS
     if (UseSharedSpaces) {
       // Verify shared interfaces array.
@@ -367,6 +370,7 @@ void Universe::genesis(TRAPS) {
       _the_array_interfaces_array->at_put(0, SystemDictionary::Cloneable_klass());
       _the_array_interfaces_array->at_put(1, SystemDictionary::Serializable_klass());
     }
+
     initialize_basic_type_klass(boolArrayKlassObj(), CHECK);
     initialize_basic_type_klass(charArrayKlassObj(), CHECK);
     initialize_basic_type_klass(singleArrayKlassObj(), CHECK);
@@ -442,6 +446,7 @@ void Universe::genesis(TRAPS) {
     assert(i == _fullgc_alot_dummy_array->length(), "just checking");
   }
   #endif
+
   // Initialize dependency array for null class loader
   ClassLoaderData::the_null_class_loader_data()->init_dependencies(CHECK);
 
@@ -660,11 +665,13 @@ jint universe_init() {
   }
 
   Metaspace::global_initialize();
+
   // Initialize performance counters for metaspaces
   MetaspaceCounters::initialize_performance_counters();
   CompressedClassSpaceCounters::initialize_performance_counters();
 
   AOTLoader::universe_init();
+
   // Checks 'AfterMemoryInit' constraints.
   if (!CommandLineFlagConstraintList::check_constraints(CommandLineFlagConstraint::AfterMemoryInit)) {
     return JNI_EINVAL;
@@ -706,6 +713,7 @@ jint universe_init() {
   if (strlen(VerifySubSet) > 0) {
     Universe::initialize_verify_flags();
   }
+
   ResolvedMethodTable::create_table();
 
   return JNI_OK;
@@ -783,6 +791,7 @@ jint Universe::initialize_heap() {
 
   // We will never reach the CATCH below since Exceptions::_throw will cause
   // the VM to exit if an exception is thrown during initialization
+
   if (UseTLAB) {
     assert(Universe::heap()->supports_tlab_allocation(),
            "Should support thread-local allocation buffers");
@@ -827,8 +836,8 @@ ReservedSpace Universe::reserve_heap(size_t heap_size, size_t alignment) {
       || use_large_pages, "Wrong alignment to use large pages");
 
   // Now create the space.
-  
   ReservedHeapSpace total_rs(total_reserved, alignment, use_large_pages, AllocateHeapAt);
+
   if (total_rs.is_reserved()) {
     assert((total_reserved == total_rs.size()) && ((uintptr_t)total_rs.base() % alignment == 0),
            "must be exactly of required size and alignment");
