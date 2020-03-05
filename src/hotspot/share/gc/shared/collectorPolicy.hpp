@@ -48,7 +48,6 @@
 // Forward declarations.
 class GenCollectorPolicy;
 class AdaptiveSizePolicy;
-class NoPolicy;
 #if INCLUDE_ALL_GCS
 class ConcurrentMarkSweepPolicy;
 class G1CollectorPolicy;
@@ -148,20 +147,6 @@ class MarkSweepPolicy : public GenCollectorPolicy {
 
  public:
   MarkSweepPolicy() {}
-};
-
-
-class NoPolicy : public CollectorPolicy {
-protected:
-    virtual void initialize_alignments() {
-        _space_alignment =  1 << 19;
-        _heap_alignment = _space_alignment;
-    }
-public:
-    NoPolicy(){}
-    NoPolicy* as_no_policy() { return this; }
-
-
 };
 
 #endif // SHARE_VM_GC_SHARED_COLLECTORPOLICY_HPP
