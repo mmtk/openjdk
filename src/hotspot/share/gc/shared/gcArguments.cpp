@@ -39,7 +39,7 @@
 #include "gc/parallel/parallelArguments.hpp"
 #include "gc/cms/cmsArguments.hpp"
 #include "gc/g1/g1Arguments.hpp"
-#include "gc/mmtk/mmtkArguments.hpp"
+#include "../../../../mmtk/openjdk/mmtkArguments.hpp"
 #endif
 
 GCArguments* GCArguments::_instance = NULL;

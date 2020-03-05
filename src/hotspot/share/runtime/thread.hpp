@@ -57,7 +57,7 @@
 #endif
 
 #include "../../../../mmtk/mmtk/api/mmtk.h"
-#include "gc/mmtk/mmtkMutator.hpp"
+#include "../../../../mmtk/openjdk/mmtkMutator.hpp"
 
 
 class ThreadSafepointState;
