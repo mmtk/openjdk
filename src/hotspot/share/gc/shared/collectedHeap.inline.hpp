@@ -161,6 +161,7 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(Klass* klass, size_t size, T
     return result;
   }
 
+
   if (!gc_overhead_limit_was_exceeded) {
     // -XX:+HeapDumpOnOutOfMemoryError and -XX:OnOutOfMemoryError support
     report_java_out_of_memory("Java heap space");

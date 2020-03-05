@@ -317,7 +317,6 @@ void TemplateInterpreterGenerator::set_entry_points(Bytecodes::Code code) {
   address vep = _unimplemented_bytecode;
   address wep = _unimplemented_bytecode;
   // code for short & wide version of bytecode
- 
   if (Bytecodes::is_defined(code)) {
     Template* t = TemplateTable::template_for(code);
     assert(t->is_valid(), "just checking");

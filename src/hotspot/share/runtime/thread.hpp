@@ -55,10 +55,8 @@
 #ifdef ZERO
 # include "stack_zero.hpp"
 #endif
-
 #include "../../../../mmtk/mmtk/api/mmtk.h"
 #include "../../../../mmtk/openjdk/mmtkMutator.hpp"
-
 
 class ThreadSafepointState;
 class ThreadsList;
