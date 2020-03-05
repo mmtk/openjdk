@@ -22,7 +22,7 @@
  *
  */
 
-#include "contextThread.hpp"
+#include "mmtkContextThread.hpp"
 #include "../../../../../mmtk/mmtk/api/mmtk.h"
 
 MMTkContextThread::MMTkContextThread() : NamedThread() {

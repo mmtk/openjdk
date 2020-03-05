@@ -38,7 +38,6 @@
 #include "services/memTracker.hpp"
 #include "utilities/vmError.hpp"
 #include "../../../../../mmtk/mmtk/api/mmtk.h"
-#include "gc/mmtk/mmtkgcTaskManager.hpp"
 #include "gc/mmtk/mmtkMutator.hpp"
 #include "gc/shared/strongRootsScope.hpp"
 #include "gc/shared/weakProcessor.hpp"
