@@ -55,8 +55,10 @@
 #ifdef ZERO
 # include "stack_zero.hpp"
 #endif
-#include "../../../../mmtk/openjdk/mmtk.h"
-#include "../../../../mmtk/openjdk/mmtkMutator.hpp"
+
+#ifdef THIRD_PARTY_HEAP
+#  include "gc/shared/thirdPartyHeap.hpp"
+#endif
 
 class ThreadSafepointState;
 class ThreadsList;
@@ -602,10 +604,6 @@ protected:
   size_t           _stack_size;
   uintptr_t        _self_raw_id;      // used by get_thread (mutable)
   int              _lgrp_id;
-  
-  // Support for mmtk allocation.
-  MMTkMutatorContext* _mmtk_mutator = (MMTkMutatorContext*) NULL;
-  void* _mmtk_collector = (void*) NULL;
 
   volatile void** polling_page_addr() { return &_polling_page; }
 
@@ -625,15 +623,11 @@ protected:
 
   uintptr_t self_raw_id()                    { return _self_raw_id; }
   void      set_self_raw_id(uintptr_t value) { _self_raw_id = value; }
-  // For mmtk support
-  MMTkMutatorContext* mmtk_mutator() {
-      assert(UseMMTk, "should use UseMMTk");
-      return _mmtk_mutator;
-  }
-  void* mmtk_collector() {
-      assert(UseMMTk, "should use UseMMTk");
-      return _mmtk_collector;
-  }
+
+#ifdef THIRD_PARTY_HEAP
+  third_party_heap::MutatorContext* third_party_heap_mutator = NULL;
+  void* third_party_heap_collector = NULL;
+#endif
 
   int     lgrp_id() const        { return _lgrp_id; }
   void    set_lgrp_id(int value) { _lgrp_id = value; }

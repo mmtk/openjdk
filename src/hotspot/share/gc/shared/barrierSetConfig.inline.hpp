@@ -34,7 +34,12 @@
 #if INCLUDE_ALL_GCS
 #include "gc/parallel/cardTableExtension.hpp"       // Parallel support
 #include "gc/g1/g1SATBCardTableModRefBS.inline.hpp" // G1 support
-#include "../../../../mmtk/openjdk/noBarrier.hpp"                    // MMTk support
+#  ifdef THIRD_PARTY_HEAP
+#    define THIRD_PARTY_HEAP_FILE(file) <THIRD_PARTY_HEAP_SRC/file>
+#    include THIRD_PARTY_HEAP_FILE(barrier.hpp)
+#  else
+#    include "gc/shared/thirdPartyHeapBarrier.hpp"
+#  endif
 #endif
 
 #endif // SHARE_VM_GC_SHARED_BARRIERSETCONFIG_INLINE_HPP

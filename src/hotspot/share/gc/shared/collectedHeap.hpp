@@ -191,7 +191,7 @@ class CollectedHeap : public CHeapObj<mtInternal> {
     ParallelScavengeHeap,
     G1CollectedHeap,
     CMSHeap,
-    MMTkHeap
+    ThirdPartyHeap,
   };
 
   static inline size_t filler_array_max_size() {

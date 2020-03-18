@@ -2273,7 +2273,7 @@ typedef PaddedEnd<ObjectMonitor>              PaddedObjectMonitor;
   declare_constant(CollectedHeap::CMSHeap)                                \
   declare_constant(CollectedHeap::ParallelScavengeHeap)                   \
   declare_constant(CollectedHeap::G1CollectedHeap)                        \
-  declare_constant(CollectedHeap::MMTkHeap)                               \
+  declare_constant(CollectedHeap::ThirdPartyHeap)                         \
                                                                           \
   /* constants from Generation::Name enum */                              \
                                                                           \

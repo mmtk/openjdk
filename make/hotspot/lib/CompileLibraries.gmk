@@ -34,7 +34,9 @@ include HotspotCommon.gmk
 # The dtrace setup must be done both before and after CompileJvm.gmk, due to
 # intricate dependencies.
 include lib/CompileDtracePreJvm.gmk
-include $(TOPDIR)/mmtk/openjdk/CompileMMTk.gmk
+ifdef THIRD_PARTY_HEAP
+  include $(THIRD_PARTY_HEAP)/CompileThirdPartyHeap.gmk
+endif
 include lib/CompileJvm.gmk
 include lib/CompileDtracePostJvm.gmk
 

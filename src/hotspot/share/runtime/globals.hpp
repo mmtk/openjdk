@@ -1395,8 +1395,8 @@ public:
                                                                             \
   product(bool, UseParallelGC, false,                                       \
           "Use the Parallel Scavenge garbage collector")                    \
-  product(bool, UseMMTk, false,                                              \
-          "Use the MMTk garbage collector")                                  \
+  product(bool, UseThirdPartyHeap, false,                                   \
+          "Use the thrtd-party heap for allocation and garbage collection") \
                                                                             \
   product(bool, UseParallelOldGC, false,                                    \
           "Use the Parallel Old garbage collector")                         \

@@ -39,7 +39,9 @@
 #include "gc/parallel/parallelArguments.hpp"
 #include "gc/cms/cmsArguments.hpp"
 #include "gc/g1/g1Arguments.hpp"
-#include "../../../../mmtk/openjdk/mmtkArguments.hpp"
+#  ifdef THIRD_PARTY_HEAP
+#    include "gc/shared/thirdPartyHeap.hpp"
+#  endif
 #endif
 
 GCArguments* GCArguments::_instance = NULL;
@@ -55,7 +57,12 @@ bool GCArguments::is_initialized() {
 
 bool GCArguments::gc_selected() {
 #if INCLUDE_ALL_GCS
-  return UseMMTk || UseSerialGC || UseParallelGC || UseParallelOldGC || UseConcMarkSweepGC || UseG1GC;
+#  ifdef THIRD_PARTY_HEAP
+#    define USE_THIRD_PARTY_HEAP UseThirdPartyHeap ||
+#  else
+#    define USE_THIRD_PARTY_HEAP
+#  endif
+  return USE_THIRD_PARTY_HEAP UseSerialGC || UseParallelGC || UseParallelOldGC || UseConcMarkSweepGC || UseG1GC;
 #else
   return UseSerialGC;
 #endif // INCLUDE_ALL_GCS
@@ -141,10 +148,13 @@ jint GCArguments::initialize() {
     jio_fprintf(defaultStream::error_stream(), "UseConcMarkSweepGC not supported in this VM.\n");
     return JNI_ERR;
 #else
-    if(UseMMTk){
-        _instance = new MMTkArguments();
-  }
-  else if (UseParallelGC || UseParallelOldGC) {
+
+#  ifdef THIRD_PARTY_HEAP
+  if (UseThirdPartyHeap) {
+        _instance = third_party_heap::new_gc_arguments();
+  } else
+#endif
+  if (UseParallelGC || UseParallelOldGC) {
     _instance = new ParallelArguments();
   } else if (UseG1GC) {
     _instance = new G1Arguments();
