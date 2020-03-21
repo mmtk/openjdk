@@ -53,6 +53,9 @@
 #if INCLUDE_ZGC
 #include "gc/z/vmStructs_z.hpp"
 #endif
+#if INCLUDE_THIRD_PARTY_HEAP
+#include "gc/shared/thirdPartyHeapVMStructs.hpp"
+#endif
 
 #define VM_STRUCTS_GC(nonstatic_field,                                                                                               \
                       volatile_nonstatic_field,                                                                                      \

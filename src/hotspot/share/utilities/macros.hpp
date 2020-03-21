@@ -239,6 +239,25 @@
 #define NOT_ZGC_RETURN_(code) { return code; }
 #endif // INCLUDE_ZGC
 
+#ifdef THIRD_PARTY_HEAP
+#define INCLUDE_THIRD_PARTY_HEAP 1
+#define THIRD_PARTY_HEAP_FILE(file) <THIRD_PARTY_HEAP_SRC/file>
+#endif // THIRD_PARTY_HEAP
+
+#if INCLUDE_THIRD_PARTY_HEAP
+#define THIRD_PARTY_HEAP_ONLY(x) x
+#define THIRD_PARTY_HEAP_ONLY_ARG(arg) arg,
+#define NOT_THIRD_PARTY_HEAP(x)
+#define NOT_THIRD_PARTY_HEAP_RETURN        /* next token must be ; */
+#define NOT_THIRD_PARTY_HEAP_RETURN_(code) /* next token must be ; */
+#else
+#define THIRD_PARTY_HEAP_ONLY(x)
+#define THIRD_PARTY_HEAP_ONLY_ARG(arg)
+#define NOT_THIRD_PARTY_HEAP(x) x
+#define NOT_THIRD_PARTY_HEAP_RETURN        {}
+#define NOT_THIRD_PARTY_HEAP_RETURN_(code) { return code; }
+#endif // INCLUDE_THIRD_PARTY_HEAP
+
 #ifndef INCLUDE_NMT
 #define INCLUDE_NMT 1
 #endif // INCLUDE_NMT
