@@ -58,7 +58,7 @@
 
 
 class SafeThreadsListPtr;
-#ifdef THIRD_PARTY_HEAP
+#ifdef INCLUDE_THIRD_PARTY_HEAP
 #  include "gc/shared/thirdPartyHeap.hpp"
 #endif
 
@@ -643,7 +643,7 @@ protected:
   uintptr_t self_raw_id()                    { return _self_raw_id; }
   void      set_self_raw_id(uintptr_t value) { _self_raw_id = value; }
 
-#ifdef THIRD_PARTY_HEAP
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   third_party_heap::MutatorContext* third_party_heap_mutator = NULL;
   void* third_party_heap_collector = NULL;
 #endif

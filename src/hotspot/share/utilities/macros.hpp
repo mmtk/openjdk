@@ -239,12 +239,8 @@
 #define NOT_ZGC_RETURN_(code) { return code; }
 #endif // INCLUDE_ZGC
 
-#ifdef THIRD_PARTY_HEAP
-#define INCLUDE_THIRD_PARTY_HEAP 1
-#define THIRD_PARTY_HEAP_FILE(file) <THIRD_PARTY_HEAP_SRC/file>
-#endif // THIRD_PARTY_HEAP
-
 #if INCLUDE_THIRD_PARTY_HEAP
+#define THIRD_PARTY_HEAP_FILE(file) <THIRD_PARTY_HEAP_SRC/file>
 #define THIRD_PARTY_HEAP_ONLY(x) x
 #define THIRD_PARTY_HEAP_ONLY_ARG(arg) arg,
 #define NOT_THIRD_PARTY_HEAP(x)

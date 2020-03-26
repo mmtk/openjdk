@@ -39,7 +39,7 @@
 #if INCLUDE_ZGC
 #include "gc/z/zBarrierSet.inline.hpp"
 #endif
-#ifdef THIRD_PARTY_HEAP
+#ifdef INCLUDE_THIRD_PARTY_HEAP
 #  include THIRD_PARTY_HEAP_FILE(barrier.hpp)
 #else
 #  include "gc/shared/thirdPartyHeapBarrier.hpp"
