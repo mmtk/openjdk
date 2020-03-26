@@ -34,8 +34,8 @@
 #if INCLUDE_EPSILONGC
 #include "gc/epsilon/epsilonArguments.hpp"
 #endif
-#if INCLUDE_THIRD_PARTY_HEAP
-#include THIRD_PARTY_HEAP_FILE(mmtkArguments.hpp)
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+#include THIRD_PARTY_HEAP_FILE(thirdPartyHeapArguments.hpp)
 #endif
 #if INCLUDE_G1GC
 #include "gc/g1/g1Arguments.hpp"
@@ -66,7 +66,7 @@ struct SupportedGC {
 PARALLELGC_ONLY(static ParallelArguments parallelArguments;)
   SERIALGC_ONLY(static SerialArguments   serialArguments;)
        ZGC_ONLY(static ZArguments        zArguments;)
-THIRD_PARTY_HEAP_ONLY(static MMTkArguments thirdPartyHeapArguments;)
+THIRD_PARTY_HEAP_ONLY(static ThirdPartyHeapArguments thirdPartyHeapArguments;)
 
 // Table of supported GCs, for translating between command
 // line flag, CollectedHeap::Name and GCArguments instance.

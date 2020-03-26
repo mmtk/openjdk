@@ -53,7 +53,7 @@
 #if INCLUDE_ZGC
 #include "gc/z/vmStructs_z.hpp"
 #endif
-#if INCLUDE_THIRD_PARTY_HEAP
+#ifdef INCLUDE_THIRD_PARTY_HEAP
 #include "gc/shared/thirdPartyHeapVMStructs.hpp"
 #endif
 
