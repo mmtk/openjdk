@@ -193,6 +193,9 @@ class IdealKit: public StackObj {
 
   Node* CmpL(Node* l, Node* r) { return transform(new CmpLNode(l, r)); }
 
+  Node* AddX(Node* l, Node* r) { return transform(new AddXNode(l, r)); }
+  Node* SubX(Node* l, Node* r) { return transform(new SubXNode(l, r)); }
+
   // TLS
   Node* thread()  {  return gvn().transform(new ThreadLocalNode()); }
 
