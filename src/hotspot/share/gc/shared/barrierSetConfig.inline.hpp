@@ -40,7 +40,7 @@
 #include "gc/z/zBarrierSet.inline.hpp"
 #endif
 #ifdef INCLUDE_THIRD_PARTY_HEAP
-#include THIRD_PARTY_HEAP_FILE(barrier.hpp)
+#include THIRD_PARTY_HEAP_FILE(thirdPartyHeapBarrierSet.hpp)
 #endif
 
 #endif // SHARE_VM_GC_SHARED_BARRIERSETCONFIG_INLINE_HPP
