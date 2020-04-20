@@ -27,7 +27,7 @@
 
 // #include "gc/epsilon/epsilonHeap.hpp"
 
-#include THIRD_PARTY_HEAP_FILE(mmtkHeap.hpp)
+#include THIRD_PARTY_HEAP_FILE(thirdPartyHeap.hpp)
 
 #include "gc/shared/space.hpp"
 #include "memory/virtualspace.hpp"
@@ -35,13 +35,11 @@
 #define VM_STRUCTS_THIRD_PARTY_HEAP(nonstatic_field,                       \
                             volatile_nonstatic_field,               \
                             static_field)                           \
-  // nonstatic_field(MMTkHeap, _virtual_space, VirtualSpace)        \
-  // nonstatic_field(MMTkHeap, _space, ContiguousSpace*)
 
 #define VM_TYPES_THIRD_PARTY_HEAP(declare_type,                            \
                           declare_toplevel_type,                    \
                           declare_integer_type)                     \
-  declare_type(MMTkHeap, CollectedHeap)
+  declare_type(ThirdPartyHeap, CollectedHeap)
 
 #define VM_INT_CONSTANTS_THIRD_PARTY_HEAP(declare_constant,                \
                                   declare_constant_with_value)

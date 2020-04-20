@@ -12,21 +12,21 @@
 // This class provides the interface between a barrier implementation and
 // the rest of the system.
 
-class NoBarrier : public BarrierSet {
+class ThirdPartyHeapBarrierSet : public BarrierSet {
   friend class VMStructs;
-  template <DecoratorSet decorators, typename BarrierSetT = NoBarrier>
+  template <DecoratorSet decorators, typename BarrierSetT = ThirdPartyHeapBarrierSet>
   class AccessBarrier: public BarrierSet::AccessBarrier<decorators, BarrierSetT> {};
 };
 
 
 template<>
-struct BarrierSet::GetName<NoBarrier> {
-  static const BarrierSet::Name value = BarrierSet::NoBarrier;
+struct BarrierSet::GetName<ThirdPartyHeapBarrierSet> {
+  static const BarrierSet::Name value = BarrierSet::ThirdPartyHeapBarrierSet;
 };
 
 template<>
-struct BarrierSet::GetType<BarrierSet::NoBarrier> {
-  typedef ::NoBarrier type;
+struct BarrierSet::GetType<BarrierSet::ThirdPartyHeapBarrierSet> {
+  typedef ::ThirdPartyHeapBarrierSet type;
 };
 
 
