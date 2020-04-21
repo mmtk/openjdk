@@ -644,7 +644,7 @@ protected:
   void      set_self_raw_id(uintptr_t value) { _self_raw_id = value; }
 
 #ifdef INCLUDE_THIRD_PARTY_HEAP
-  third_party_heap::MutatorContext* third_party_heap_mutator = NULL;
+  third_party_heap::MutatorContext third_party_heap_mutator;
   void* third_party_heap_collector = NULL;
 #endif
 
