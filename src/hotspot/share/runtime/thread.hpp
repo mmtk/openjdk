@@ -55,13 +55,11 @@
 #if INCLUDE_JFR
 #include "jfr/support/jfrThreadExtension.hpp"
 #endif
-
-
-class SafeThreadsListPtr;
 #ifdef INCLUDE_THIRD_PARTY_HEAP
 #  include "gc/shared/thirdPartyHeap.hpp"
 #endif
 
+class SafeThreadsListPtr;
 class ThreadSafepointState;
 class ThreadsList;
 class ThreadsSMRSupport;

@@ -32,12 +32,12 @@ class  AllocateArrayNode;
 class  CallNode;
 class  Node;
 class  PhaseIterGVN;
-// #ifdef INCLUDE_THIRD_PARTY_HEAP
-// #  include THIRD_PARTY_HEAP_FILE(thirdPartyHeapBarrierSet.hpp)
-// #endif
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+#  include THIRD_PARTY_HEAP_FILE(thirdPartyHeapBarrierSetC2.hpp)
+#endif
 
 class PhaseMacroExpand : public Phase {
-    // friend class ThirdPartyHeapBarrierSetC2;
+    friend ThirdPartyHeapBarrierSetC2;
 private:
   PhaseIterGVN &_igvn;
 
@@ -84,10 +84,6 @@ private:
   void expand_allocate(AllocateNode *alloc);
   void expand_allocate_array(AllocateArrayNode *alloc);
   void expand_allocate_common(AllocateNode* alloc,
-                              Node* length,
-                              const TypeFunc* slow_call_type,
-                              address slow_call_address);
-  void expand_allocate_tph(AllocateNode* alloc,
                               Node* length,
                               const TypeFunc* slow_call_type,
                               address slow_call_address);
