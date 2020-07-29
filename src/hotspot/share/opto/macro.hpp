@@ -37,7 +37,9 @@ class  PhaseIterGVN;
 #endif
 
 class PhaseMacroExpand : public Phase {
+#ifdef INCLUDE_THIRD_PARTY_HEAP
     friend ThirdPartyHeapBarrierSetC2;
+#endif
 private:
   PhaseIterGVN &_igvn;
 
