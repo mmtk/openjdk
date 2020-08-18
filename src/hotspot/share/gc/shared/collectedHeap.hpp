@@ -201,6 +201,11 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   // This is the correct place to place such initialization methods.
   virtual void post_initialize();
 
+  // Notify the heap that now collection is allowed.
+  // This is added for third party heap to avoid a third party heap starts any collection attempt
+  // before the VM is ready.
+  virtual void enable_collection() {}
+
   // Stop any onging concurrent work and prepare for exit.
   virtual void stop() {}
 
