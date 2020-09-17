@@ -212,6 +212,7 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   // Stop and resume concurrent GC threads interfering with safepoint operations
   virtual void safepoint_synchronize_begin() {}
   virtual void safepoint_synchronize_end() {}
+  virtual void report_java_thread_yield(JavaThread* thread) {}
 
   void initialize_reserved_region(HeapWord *start, HeapWord *end);
   MemRegion reserved_region() const { return _reserved; }
