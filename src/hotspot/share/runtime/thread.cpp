@@ -337,6 +337,9 @@ void Thread::initialize_thread_current() {
 
 void Thread::clear_thread_current() {
   assert(Thread::current() == ThreadLocalStorage::thread(), "TLS mismatch!");
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+  if (UseThirdPartyHeap) third_party_heap_mutator.deinit();
+#endif
 #ifndef USE_LIBRARY_BASED_TLS_ONLY
   _thr_current = NULL;
 #endif
