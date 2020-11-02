@@ -2171,7 +2171,7 @@ void Matcher::find_shared( Node *n ) {
 #ifdef INCLUDE_THIRD_PARTY_HEAP
       case Op_CallLeaf:
         if (UseThirdPartyHeap) {
-          if (n->as_Call()->entry_point() == ThirdPartyHeapBarrierSet::slow_path_call()) {
+          if (ThirdPartyHeapBarrierSet::is_slow_path_call(n->as_Call()->entry_point())) {
             mem_op = true;
             mem_addr_idx = TypeFunc::Parms+1;
           }

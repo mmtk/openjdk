@@ -691,7 +691,7 @@ void JavaFrameAnchor::make_walkable(JavaThread* thread) {
   if (last_Java_sp() == NULL) return;
   // already walkable?
   if (walkable()) return;
-  vmassert(Thread::current() == (Thread*)thread, "not current thread");
+  vmassert(UseThirdPartyHeap || Thread::current() == (Thread*)thread, "not current thread");
   vmassert(last_Java_sp() != NULL, "not called from Java code?");
   vmassert(last_Java_pc() == NULL, "already walkable");
   capture_last_Java_pc();
