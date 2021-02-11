@@ -12,6 +12,7 @@ class GCArguments;
 namespace third_party_heap {
 
 extern GCArguments* new_gc_arguments();
+extern void register_finalizer(void* obj);
 
 };
 

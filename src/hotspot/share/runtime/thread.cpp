@@ -3794,6 +3794,8 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   HOTSPOT_VM_INIT_END();
 
+  Universe::heap()->notify_vm_init_complete();
+
   // record VM initialization completion time
 #if INCLUDE_MANAGEMENT
   Management::record_vm_init_completed();

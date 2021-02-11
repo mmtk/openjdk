@@ -206,6 +206,8 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   // before the VM is ready.
   virtual void enable_collection() {}
 
+  virtual void notify_vm_init_complete() {}
+
   // Stop any onging concurrent work and prepare for exit.
   virtual void stop() {}
 
