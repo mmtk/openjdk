@@ -3754,7 +3754,6 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   }
 
   assert(Universe::is_fully_initialized(), "not initialized");
-  Universe::heap()->enable_collection();
   if (VerifyDuringStartup) {
     // Make sure we're starting with a clean slate.
     VM_Verify verify_op;
@@ -3791,6 +3790,9 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   LogConfiguration::post_initialize();
   Metaspace::post_initialize();
+
+  // This happens after initialize_java_lang_classes. For TPH, we may use Java classes.
+  Universe::heap()->enable_collection();
 
   HOTSPOT_VM_INIT_END();
 

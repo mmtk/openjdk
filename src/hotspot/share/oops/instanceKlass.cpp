@@ -80,6 +80,9 @@
 #ifdef COMPILER1
 #include "c1/c1_Compiler.hpp"
 #endif
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+#include "gc/shared/gc_globals.hpp"
+#endif
 
 #ifdef DTRACE_ENABLED
 
@@ -1196,6 +1199,15 @@ instanceOop InstanceKlass::register_finalizer(instanceOop i, TRAPS) {
     tty->print_cr(" (" INTPTR_FORMAT ") as finalizable", p2i(i));
   }
   instanceHandle h_i(THREAD, i);
+
+  // If we are using third party heap, call their finalizer register method instead.
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+  if (UseThirdPartyHeap) {
+    third_party_heap::register_finalizer((void*) i);
+    return h_i();
+  }
+#endif
+
   // Pass the handle as argument, JavaCalls::call expects oop as jobjects
   JavaValue result(T_VOID);
   JavaCallArguments args(h_i);
