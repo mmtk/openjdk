@@ -542,7 +542,7 @@ void SafeThreadsListPtr::verify_hazard_ptr_scanned() {
   // In either case, we won't get past this point with a badly placed
   // ThreadsListHandle.
 
-  assert(cl.found() || _thread == VM_Exit::shutdown_thread(), "Acquired a ThreadsList snapshot from a thread not recognized by the Thread-SMR protocol.");
+  assert(UseThirdPartyHeap || cl.found() || _thread == VM_Exit::shutdown_thread(), "Acquired a ThreadsList snapshot from a thread not recognized by the Thread-SMR protocol.");
 #endif
 }
 

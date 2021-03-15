@@ -79,6 +79,11 @@ public:
     assert((_tag_set & tbit) == 0,
            "Tag " UINTX_FORMAT " is already present in tag set: " UINTX_FORMAT,
            (uintx)tag, _tag_set);
+    if (!UseThirdPartyHeap) {
+      assert((_tag_set & tbit) == 0,
+             "Tag " UINTX_FORMAT " is already present in tag set: " UINTX_FORMAT,
+             (uintx)tag, _tag_set);
+    }
     return FakeRttiSupport(_concrete_tag, _tag_set | tbit);
   }
 

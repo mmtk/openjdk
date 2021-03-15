@@ -192,6 +192,9 @@ class IdealKit: public StackObj {
   void  decrement(IdealVariable& v, Node* j)  { set(v, SubI(value(v), j)); }
 
   Node* CmpL(Node* l, Node* r) { return transform(new CmpLNode(l, r)); }
+  
+  Node* AddX(Node* l, Node* r) { return transform(new AddXNode(l, r)); }
+  Node* SubX(Node* l, Node* r) { return transform(new SubXNode(l, r)); }
 
   // TLS
   Node* thread()  {  return gvn().transform(new ThreadLocalNode()); }

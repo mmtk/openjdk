@@ -326,6 +326,10 @@ void Thread::initialize_thread_current() {
 #endif
   assert(ThreadLocalStorage::thread() == NULL, "ThreadLocalStorage::thread already initialized");
   ThreadLocalStorage::set_thread(this);
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+  if (UseThirdPartyHeap)
+    third_party_heap_mutator = third_party_heap::MutatorContext::bind(current());
+#endif
   assert(Thread::current() == ThreadLocalStorage::thread(), "TLS mismatch!");
 }
 
@@ -3873,6 +3877,9 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   LogConfiguration::post_initialize();
   Metaspace::post_initialize();
+
+  // This happens after initialize_java_lang_classes. For TPH, we may use Java classes.
+  Universe::heap()->enable_collection();
 
   HOTSPOT_VM_INIT_END();
 

@@ -444,7 +444,7 @@ bool SubTasksDone::is_task_claimed(uint t) {
   return res;
 }
 
-void SubTasksDone::all_tasks_completed(uint n_threads) {
+uint SubTasksDone::all_tasks_completed(uint n_threads) {
   uint observed = _threads_completed;
   uint old;
   do {
@@ -456,6 +456,7 @@ void SubTasksDone::all_tasks_completed(uint n_threads) {
   if (observed + 1 == adjusted_thread_count) {
     clear();
   }
+  return observed;
 }
 
 

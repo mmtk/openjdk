@@ -180,7 +180,8 @@ class CollectedHeap : public CHeapObj<mtInternal> {
     CMS,
     G1,
     Epsilon,
-    Z
+    Z,
+    ThirdPartyHeap
 #if INCLUDE_SHENANDOAHGC
     ,Shenandoah
 #endif
@@ -205,12 +206,18 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   // This is the correct place to place such initialization methods.
   virtual void post_initialize();
 
+  // Notify the heap that now collection is allowed.
+  // This is added for third party heap to avoid a third party heap starts any collection attempt
+  // before the VM is ready.
+  virtual void enable_collection() {}
+
   // Stop any onging concurrent work and prepare for exit.
   virtual void stop() {}
 
   // Stop and resume concurrent GC threads interfering with safepoint operations
   virtual void safepoint_synchronize_begin() {}
   virtual void safepoint_synchronize_end() {}
+  virtual void report_java_thread_yield(JavaThread* thread) {}
 
   void initialize_reserved_region(HeapWord *start, HeapWord *end);
   MemRegion reserved_region() const { return _reserved; }
@@ -233,7 +240,7 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   virtual size_t max_capacity() const = 0;
 
   // Returns "TRUE" if "p" points into the reserved area of the heap.
-  bool is_in_reserved(const void* p) const {
+  virtual bool is_in_reserved(const void* p) const {
     return _reserved.contains(p);
   }
 

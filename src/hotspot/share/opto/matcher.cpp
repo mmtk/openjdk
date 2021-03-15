@@ -44,6 +44,9 @@
 #if INCLUDE_ZGC
 #include "gc/z/zBarrierSetRuntime.hpp"
 #endif // INCLUDE_ZGC
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+#include THIRD_PARTY_HEAP_FILE(thirdPartyHeapBarrierSet.hpp)
+#endif // INCLUDE_THIRD_PARTY_HEAP
 
 OptoReg::Name OptoReg::c_frame_pointer;
 
@@ -2178,6 +2181,16 @@ void Matcher::find_shared( Node *n ) {
         if (UseZGC) {
           if (n->as_Call()->entry_point() == ZBarrierSetRuntime::load_barrier_on_oop_field_preloaded_addr() ||
               n->as_Call()->entry_point() == ZBarrierSetRuntime::load_barrier_on_weak_oop_field_preloaded_addr()) {
+            mem_op = true;
+            mem_addr_idx = TypeFunc::Parms+1;
+          }
+          break;
+        }
+#endif
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+      case Op_CallLeaf:
+        if (UseThirdPartyHeap) {
+          if (ThirdPartyHeapBarrierSet::is_slow_path_call(n->as_Call()->entry_point())) {
             mem_op = true;
             mem_addr_idx = TypeFunc::Parms+1;
           }

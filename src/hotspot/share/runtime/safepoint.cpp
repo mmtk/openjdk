@@ -294,6 +294,7 @@ void SafepointSynchronize::begin() {
             cur_state->examine_state_of_thread();
             if (!cur_state->is_running()) {
               still_running--;
+              Universe::heap()->report_java_thread_yield(cur);
               // consider adjusting steps downward:
               //   steps = 0
               //   steps -= NNN

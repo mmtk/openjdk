@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, Red Hat Inc. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,29 +22,24 @@
  *
  */
 
-#ifndef SHARE_VM_GC_SHARED_BARRIERSETCONFIG_INLINE_HPP
-#define SHARE_VM_GC_SHARED_BARRIERSETCONFIG_INLINE_HPP
+#ifndef SHARE_GC_SHARED_THIRD_PARTY_HEAP_VM_STRUCTS_HPP
+#define SHARE_GC_SHARED_THIRD_PARTY_HEAP_VM_STRUCTS_HPP
 
-#include "gc/shared/barrierSetConfig.hpp"
+// #include "gc/epsilon/epsilonHeap.hpp"
 
-#include "gc/shared/modRefBarrierSet.inline.hpp"
-#include "gc/shared/cardTableBarrierSet.inline.hpp"
+#include THIRD_PARTY_HEAP_FILE(thirdPartyHeap.hpp)
 
-#if INCLUDE_EPSILONGC
-#include "gc/epsilon/epsilonBarrierSet.hpp"
-#endif
-#if INCLUDE_G1GC
-#include "gc/g1/g1BarrierSet.inline.hpp"
-#endif
-#if INCLUDE_SHENANDOAHGC
-#include "gc/shenandoah/shenandoahBarrierSet.inline.hpp"
-#endif
-#if INCLUDE_ZGC
-#include "gc/z/zBarrierSet.inline.hpp"
-#endif
+#include "gc/shared/space.hpp"
+#include "memory/virtualspace.hpp"
 
-#ifdef INCLUDE_THIRD_PARTY_HEAP
-#include THIRD_PARTY_HEAP_FILE(thirdPartyHeapBarrierSet.hpp)
-#endif
+#define VM_STRUCTS_THIRD_PARTY_HEAP(nonstatic_field, volatile_nonstatic_field, \
+                                    static_field)
 
-#endif // SHARE_VM_GC_SHARED_BARRIERSETCONFIG_INLINE_HPP
+#define VM_TYPES_THIRD_PARTY_HEAP(declare_type, declare_toplevel_type, \
+                                  declare_integer_type)                \
+  declare_type(ThirdPartyHeap, CollectedHeap)
+
+#define VM_INT_CONSTANTS_THIRD_PARTY_HEAP(declare_constant, \
+                                          declare_constant_with_value)
+
+#endif  // SHARE_GC_SHARED_THIRD_PARTY_HEAP_VM_STRUCTS_HPP

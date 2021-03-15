@@ -34,6 +34,11 @@
 #if INCLUDE_EPSILONGC
 #include "gc/epsilon/epsilonArguments.hpp"
 #endif
+
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+#include THIRD_PARTY_HEAP_FILE(thirdPartyHeapArguments.hpp)
+#endif
+
 #if INCLUDE_G1GC
 #include "gc/g1/g1Arguments.hpp"
 #endif
@@ -67,6 +72,7 @@ struct SupportedGC {
     SERIALGC_ONLY(static SerialArguments     serialArguments;)
 SHENANDOAHGC_ONLY(static ShenandoahArguments shenandoahArguments;)
          ZGC_ONLY(static ZArguments          zArguments;)
+THIRD_PARTY_HEAP_ONLY(static ThirdPartyHeapArguments thirdPartyHeapArguments;)
 
 // Table of supported GCs, for translating between command
 // line flag, CollectedHeap::Name and GCArguments instance.
@@ -79,6 +85,7 @@ static const SupportedGC SupportedGCs[] = {
     SERIALGC_ONLY_ARG(SupportedGC(UseSerialGC,        CollectedHeap::Serial,     serialArguments,     "serial gc"))
 SHENANDOAHGC_ONLY_ARG(SupportedGC(UseShenandoahGC,    CollectedHeap::Shenandoah, shenandoahArguments, "shenandoah gc"))
          ZGC_ONLY_ARG(SupportedGC(UseZGC,             CollectedHeap::Z,          zArguments,          "z gc"))
+THIRD_PARTY_HEAP_ONLY_ARG(SupportedGC(UseThirdPartyHeap, CollectedHeap::ThirdPartyHeap, thirdPartyHeapArguments, "third-party gc"))
 };
 
 #define FOR_EACH_SUPPORTED_GC(var)                                          \
@@ -103,6 +110,7 @@ void GCConfig::fail_if_unsupported_gc_is_selected() {
   NOT_SERIALGC(  FAIL_IF_SELECTED(UseSerialGC,        true));
   NOT_SERIALGC(  FAIL_IF_SELECTED(UseParallelOldGC,   false));
   NOT_ZGC(       FAIL_IF_SELECTED(UseZGC,             true));
+  NOT_THIRD_PARTY_HEAP(FAIL_IF_SELECTED(UseThirdPartyHeap, true));
 }
 
 void GCConfig::select_gc_ergonomically() {
