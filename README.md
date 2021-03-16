@@ -1,4 +1,6 @@
-# Welcome to the JDK!
+# Welcome to the JDK with MMTk support!
+
+This branch is based on the [official OpenJDK 11 update repository](https://github.com/openjdk/jdk11u).
 
 For build instructions please see the
 [online documentation](https://openjdk.java.net/groups/build/doc/building.html),
