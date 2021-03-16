@@ -2176,7 +2176,7 @@ void Matcher::find_shared( Node *n ) {
       case Op_SafePoint:
         mem_op = true;
         break;
-#if INCLUDE_ZGC
+#if defined(INCLUDE_ZGC) && !defined(INCLUDE_THIRD_PARTY_HEAP)
       case Op_CallLeaf:
         if (UseZGC) {
           if (n->as_Call()->entry_point() == ZBarrierSetRuntime::load_barrier_on_oop_field_preloaded_addr() ||
@@ -2188,7 +2188,7 @@ void Matcher::find_shared( Node *n ) {
         }
 #endif
 #ifdef INCLUDE_THIRD_PARTY_HEAP
-      case Op_CallLeaf:
+      case Op_CallLeaf: 
         if (UseThirdPartyHeap) {
           if (ThirdPartyHeapBarrierSet::is_slow_path_call(n->as_Call()->entry_point())) {
             mem_op = true;
