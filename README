@@ -1,6 +1,10 @@
 
-Welcome to the JDK!
+Welcome to the JDK-11 with MMTk support
 ===================
+
+This branch is based-on the [official OpenJDK-11 update repository](https://github.com/openjdk/jdk11u.git).
+
+
 
 For information about building the JDK, including how to retrieve all
 of the source code, please see either of these files:
