@@ -130,6 +130,7 @@
   template(PrintMetadata)                         \
   template(GTestExecuteAtSafepoint)               \
   template(JFROldObject)                          \
+  THIRD_PARTY_HEAP_ONLY(template(ThirdPartyHeapOperation)) \
 
 class VM_Operation: public CHeapObj<mtInternal> {
  public:
