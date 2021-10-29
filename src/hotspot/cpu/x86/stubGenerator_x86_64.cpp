@@ -2120,6 +2120,7 @@ class StubGenerator: public StubCodeGenerator {
     BasicType type = is_oop ? T_OBJECT : T_LONG;
     BarrierSetAssembler *bs = BarrierSet::barrier_set()->barrier_set_assembler();
     bs->arraycopy_prologue(_masm, decorators, type, from, to, qword_count);
+    bs->arraycopy_prologue2(_masm, decorators, type, from, to, qword_count, rcx);
 
     // Copy from low to high addresses.  Use 'to' as scratch.
     __ lea(end_from, Address(from, qword_count, Address::times_8, -8));
@@ -2213,6 +2214,7 @@ class StubGenerator: public StubCodeGenerator {
     BasicType type = is_oop ? T_OBJECT : T_LONG;
     BarrierSetAssembler *bs = BarrierSet::barrier_set()->barrier_set_assembler();
     bs->arraycopy_prologue(_masm, decorators, type, from, to, qword_count);
+    bs->arraycopy_prologue2(_masm, decorators, type, from, to, qword_count, rcx);
 
     __ jmp(L_copy_bytes);
 
@@ -2393,6 +2395,7 @@ class StubGenerator: public StubCodeGenerator {
     BasicType type = T_OBJECT;
     BarrierSetAssembler *bs = BarrierSet::barrier_set()->barrier_set_assembler();
     bs->arraycopy_prologue(_masm, decorators, type, from, to, count);
+    bs->arraycopy_prologue2(_masm, decorators, type, from, to, count, r9);
 
     // Copy from low to high addresses, indexed from the end of each array.
     __ lea(end_from, end_from_addr);

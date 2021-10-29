@@ -1022,7 +1022,7 @@ Node* PhaseMacroExpand::generate_checkcast_arraycopy(Node** ctrl, MergeMemNode**
 
   const TypeFunc* call_type = OptoRuntime::checkcast_arraycopy_Type();
   Node* call = make_leaf_call(*ctrl, *mem, call_type, copyfunc_addr, "checkcast_arraycopy", adr_type,
-                              src_start, dest_start, copy_length XTOP, check_offset XTOP, check_value);
+                              src_start, dest_start, copy_length XTOP, check_offset XTOP, check_value, dest);
 
   finish_arraycopy_call(call, ctrl, mem, adr_type);
 
@@ -1081,9 +1081,17 @@ void PhaseMacroExpand::generate_unchecked_arraycopy(Node** ctrl, MergeMemNode** 
       basictype2arraycopy(basic_elem_type, src_offset, dest_offset,
                           disjoint_bases, copyfunc_name, dest_uninitialized);
 
-  const TypeFunc* call_type = OptoRuntime::fast_arraycopy_Type();
-  Node* call = make_leaf_call(*ctrl, *mem, call_type, copyfunc_addr, copyfunc_name, adr_type,
-                              src_start, dest_start, copy_length XTOP);
+  Node* call;
+  if (basic_elem_type == T_OBJECT || basic_elem_type == T_ARRAY) {
+    const TypeFunc* call_type = OptoRuntime::fast_oop_arraycopy_Type();
+    guarantee(dest_offset != NULL, "");
+    call = make_leaf_call(*ctrl, *mem, call_type, copyfunc_addr, "arraycopy2", adr_type,
+                          src_start, dest_start, copy_length XTOP, dest);
+  } else {
+    const TypeFunc* call_type = OptoRuntime::fast_arraycopy_Type();
+    call = make_leaf_call(*ctrl, *mem, call_type, copyfunc_addr, copyfunc_name, adr_type,
+                          src_start, dest_start, copy_length XTOP);
+  }
 
   finish_arraycopy_call(call, ctrl, mem, adr_type);
 }
