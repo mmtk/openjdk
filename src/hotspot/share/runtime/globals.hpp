@@ -780,7 +780,7 @@ define_pd_global(uint64_t,MaxRAM,                    1ULL*G);
           "Register finalizable objects at end of Object.<init> or "        \
           "after allocation")                                               \
                                                                             \
-  develop(bool, RegisterReferences, true,                                   \
+  product(bool, RegisterReferences, true,                                   \
           "Tell whether the VM should register soft/weak/final/phantom "    \
           "references")                                                     \
                                                                             \
