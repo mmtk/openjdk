@@ -3344,6 +3344,7 @@ void LIR_Assembler::emit_arraycopy(LIR_OpArrayCopy* op) {
         __ call(RuntimeAddress(copyfunc_addr));
         __ addptr(rsp, 6*wordSize);
 #else
+        __ movptr(c_rarg5, dst);
         __ load_klass(c_rarg4, dst);
         __ movptr(c_rarg4, Address(c_rarg4, ObjArrayKlass::element_klass_offset()));
         __ movl(c_rarg3, Address(c_rarg4, Klass::super_check_offset_offset()));

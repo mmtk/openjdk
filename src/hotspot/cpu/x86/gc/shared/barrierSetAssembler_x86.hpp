@@ -41,6 +41,8 @@ private:
 public:
   virtual void arraycopy_prologue(MacroAssembler* masm, DecoratorSet decorators, BasicType type,
                                   Register src, Register dst, Register count) {}
+  virtual void oop_arraycopy_prologue(MacroAssembler* masm, DecoratorSet decorators, BasicType type,
+                                   Register src, Register dst, Register count, Register dst_obj) {}
   virtual void arraycopy_epilogue(MacroAssembler* masm, DecoratorSet decorators, BasicType type,
                                   Register src, Register dst, Register count) {}
 

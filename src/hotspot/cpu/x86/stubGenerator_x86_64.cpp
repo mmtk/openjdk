@@ -1922,6 +1922,7 @@ class StubGenerator: public StubCodeGenerator {
     BasicType type = is_oop ? T_OBJECT : T_INT;
     BarrierSetAssembler *bs = BarrierSet::barrier_set()->barrier_set_assembler();
     bs->arraycopy_prologue(_masm, decorators, type, from, to, count);
+    if (is_oop) bs->oop_arraycopy_prologue(_masm, decorators, type, from, to, count, rcx);
 
     // 'from', 'to' and 'count' are now valid
     __ movptr(dword_count, count);
@@ -2017,6 +2018,7 @@ class StubGenerator: public StubCodeGenerator {
     BarrierSetAssembler *bs = BarrierSet::barrier_set()->barrier_set_assembler();
     // no registers are destroyed by this call
     bs->arraycopy_prologue(_masm, decorators, type, from, to, count);
+    if (is_oop) bs->oop_arraycopy_prologue(_masm, decorators, type, from, to, count, rcx);
 
     assert_clean_int(count, rax); // Make sure 'count' is clean int.
     // 'from', 'to' and 'count' are now valid
@@ -2120,6 +2122,7 @@ class StubGenerator: public StubCodeGenerator {
     BasicType type = is_oop ? T_OBJECT : T_LONG;
     BarrierSetAssembler *bs = BarrierSet::barrier_set()->barrier_set_assembler();
     bs->arraycopy_prologue(_masm, decorators, type, from, to, qword_count);
+    if (is_oop) bs->oop_arraycopy_prologue(_masm, decorators, type, from, to, qword_count, rcx);
 
     // Copy from low to high addresses.  Use 'to' as scratch.
     __ lea(end_from, Address(from, qword_count, Address::times_8, -8));
@@ -2213,6 +2216,7 @@ class StubGenerator: public StubCodeGenerator {
     BasicType type = is_oop ? T_OBJECT : T_LONG;
     BarrierSetAssembler *bs = BarrierSet::barrier_set()->barrier_set_assembler();
     bs->arraycopy_prologue(_masm, decorators, type, from, to, qword_count);
+    if (is_oop) bs->oop_arraycopy_prologue(_masm, decorators, type, from, to, qword_count, rcx);
 
     __ jmp(L_copy_bytes);
 
@@ -2393,6 +2397,7 @@ class StubGenerator: public StubCodeGenerator {
     BasicType type = T_OBJECT;
     BarrierSetAssembler *bs = BarrierSet::barrier_set()->barrier_set_assembler();
     bs->arraycopy_prologue(_masm, decorators, type, from, to, count);
+    bs->oop_arraycopy_prologue(_masm, decorators, type, from, to, count, r9);
 
     // Copy from low to high addresses, indexed from the end of each array.
     __ lea(end_from, end_from_addr);
@@ -2808,6 +2813,7 @@ class StubGenerator: public StubCodeGenerator {
                  arrayOopDesc::base_offset_in_bytes(T_OBJECT))); // dst_addr
     __ movl2ptr(count, r11_length); // length
   __ BIND(L_plain_copy);
+    __ movptr(rcx, dst);
     __ jump(RuntimeAddress(oop_copy_entry));
 
   __ BIND(L_checkcast_copy);
@@ -2852,6 +2858,7 @@ class StubGenerator: public StubCodeGenerator {
       // Set up arguments for checkcast_copy_entry.
       setup_arg_regs(4);
       __ movptr(r8, r11_dst_klass);  // dst.klass.element_klass, r8 is c_rarg4 on Linux/Solaris
+      __ movptr(r9, dst);
       __ jump(RuntimeAddress(checkcast_copy_entry));
     }
 
