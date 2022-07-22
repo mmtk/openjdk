@@ -2936,19 +2936,40 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
   // * count must be already in ECX (guaranteed by LinearScan)
   // * left and dest must be equal
   // * tmp must be unused
-  assert(count->as_register() == SHIFT_count, "count must be in ECX");
+  assert(!left->is_single_cpu() && count->as_register() == SHIFT_count, "count must be in ECX");
   assert(left == dest, "left and dest must be equal");
   assert(tmp->is_illegal(), "wasting a register if tmp is allocated");
 
   if (left->is_single_cpu()) {
     Register value = left->as_register();
-    assert(value != SHIFT_count, "left cannot be ECX");
+
+    if (left->as_register() == SHIFT_count) {
+      // left is ECX, count is not ECX
+      // swap left and count registers
+      swap_reg(left->as_register(), count->as_register());
+      value = count->as_register();
+    } else if (count->as_register() != SHIFT_count) {
+      // left is not ECX, count is not ECX
+      // save current ECX value, and move count to ECX
+      __ push(SHIFT_count);
+      __ mov(SHIFT_count, count->as_register());
+    }
 
     switch (code) {
       case lir_shl:  __ shll(value); break;
       case lir_shr:  __ sarl(value); break;
       case lir_ushr: __ shrl(value); break;
       default: ShouldNotReachHere();
+    }
+
+    if (left->as_register() == SHIFT_count) {
+      // left is ECX, count is not ECX
+      // swap left and count registers back
+      swap_reg(left->as_register(), count->as_register());
+    } else if (count->as_register() != SHIFT_count) {
+      // left is not ECX, count is not ECX
+      // restore ECX value
+      __ pop(SHIFT_count);
     }
   } else if (left->is_double_cpu()) {
     Register lo = left->as_register_lo();
