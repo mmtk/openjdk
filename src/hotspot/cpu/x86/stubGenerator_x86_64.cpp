@@ -2631,7 +2631,6 @@ class StubGenerator: public StubCodeGenerator {
     // (8) dst_pos + length must not exceed length of dst.
     //
 
-    __ push(dst);
     //  if (src == NULL) return -1;
     __ testptr(src, src);         // src oop
     size_t j1off = __ offset();
@@ -2759,7 +2758,6 @@ class StubGenerator: public StubCodeGenerator {
     __ lea(from, Address(src, src_pos, Address::times_1, 0));// src_addr
     __ lea(to,   Address(dst, dst_pos, Address::times_1, 0));// dst_addr
     __ movl2ptr(count, r11_length); // length
-    __ pop(rax);
     __ jump(RuntimeAddress(byte_copy_entry));
 
   __ BIND(L_copy_shorts);
@@ -2768,7 +2766,6 @@ class StubGenerator: public StubCodeGenerator {
     __ lea(from, Address(src, src_pos, Address::times_2, 0));// src_addr
     __ lea(to,   Address(dst, dst_pos, Address::times_2, 0));// dst_addr
     __ movl2ptr(count, r11_length); // length
-    __ pop(rax);
     __ jump(RuntimeAddress(short_copy_entry));
 
   __ BIND(L_copy_ints);
@@ -2777,7 +2774,6 @@ class StubGenerator: public StubCodeGenerator {
     __ lea(from, Address(src, src_pos, Address::times_4, 0));// src_addr
     __ lea(to,   Address(dst, dst_pos, Address::times_4, 0));// dst_addr
     __ movl2ptr(count, r11_length); // length
-    __ pop(rax);
     __ jump(RuntimeAddress(int_copy_entry));
 
   __ BIND(L_copy_longs);
@@ -2795,7 +2791,6 @@ class StubGenerator: public StubCodeGenerator {
     __ lea(from, Address(src, src_pos, Address::times_8, 0));// src_addr
     __ lea(to,   Address(dst, dst_pos, Address::times_8, 0));// dst_addr
     __ movl2ptr(count, r11_length); // length
-    __ pop(rax);
     __ jump(RuntimeAddress(long_copy_entry));
 
     // ObjArrayKlass
@@ -2811,7 +2806,7 @@ class StubGenerator: public StubCodeGenerator {
     // Identically typed arrays can be copied without element-wise checks.
     arraycopy_range_checks(src, src_pos, dst, dst_pos, r11_length,
                            r10, L_failed);
-
+    __ push(dst);
     __ lea(from, Address(src, src_pos, TIMES_OOP,
                  arrayOopDesc::base_offset_in_bytes(T_OBJECT))); // src_addr
     __ lea(to,   Address(dst, dst_pos, TIMES_OOP,
@@ -2841,6 +2836,7 @@ class StubGenerator: public StubCodeGenerator {
       __ lea(to,   Address(dst, dst_pos, TIMES_OOP,
                    arrayOopDesc::base_offset_in_bytes(T_OBJECT)));
       __ movl(count, length);           // length (reloaded)
+      __ push(dst);
       Register sco_temp = c_rarg3;      // this register is free now
       assert_different_registers(from, to, count, sco_temp,
                                  r11_dst_klass, r10_src_klass);
@@ -2868,7 +2864,6 @@ class StubGenerator: public StubCodeGenerator {
     }
 
   __ BIND(L_failed);
-     __ pop(rax);
     __ xorptr(rax, rax);
     __ notptr(rax); // return -1
     __ leave();   // required for proper stackwalking of RuntimeStub frame
