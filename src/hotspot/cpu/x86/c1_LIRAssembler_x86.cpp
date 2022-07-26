@@ -2936,7 +2936,7 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
   // * count must be already in ECX (guaranteed by LinearScan)
   // * left and dest must be equal
   // * tmp must be unused
-  assert(!left->is_single_cpu() && count->as_register() == SHIFT_count, "count must be in ECX");
+  assert(left->is_single_cpu() || count->as_register() == SHIFT_count, "count must be in ECX");
   assert(left == dest, "left and dest must be equal");
   assert(tmp->is_illegal(), "wasting a register if tmp is allocated");
 
@@ -3480,6 +3480,9 @@ void LIR_Assembler::emit_arraycopy(LIR_OpArrayCopy* op) {
   bool disjoint = (flags & LIR_OpArrayCopy::overlapping) == 0;
   bool aligned = (flags & LIR_OpArrayCopy::unaligned) == 0;
   const char *name;
+  if (basic_type == T_OBJECT || basic_type == T_ARRAY) {
+    if (c_rarg3 != dst) __ mov(c_rarg3, dst);
+  }
   address entry = StubRoutines::select_arraycopy_function(basic_type, aligned, disjoint, name, false);
   __ call_VM_leaf(entry, 0);
 
