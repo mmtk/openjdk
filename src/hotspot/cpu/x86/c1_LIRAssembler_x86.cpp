@@ -3364,7 +3364,9 @@ void LIR_Assembler::emit_arraycopy(LIR_OpArrayCopy* op) {
         __ call(RuntimeAddress(copyfunc_addr));
         __ addptr(rsp, 6*wordSize);
 #else
-        __ movptr(c_rarg5, dst);
+        if (BarrierSet::barrier_set()->barrier_set_assembler()->enable_oop_arraycopy_prologue()) {
+          __ movptr(c_rarg5, dst);
+        }
         __ load_klass(c_rarg4, dst);
         __ movptr(c_rarg4, Address(c_rarg4, ObjArrayKlass::element_klass_offset()));
         __ movl(c_rarg3, Address(c_rarg4, Klass::super_check_offset_offset()));
@@ -3479,8 +3481,9 @@ void LIR_Assembler::emit_arraycopy(LIR_OpArrayCopy* op) {
   bool disjoint = (flags & LIR_OpArrayCopy::overlapping) == 0;
   bool aligned = (flags & LIR_OpArrayCopy::unaligned) == 0;
   const char *name;
-  if (basic_type == T_OBJECT || basic_type == T_ARRAY) {
-    if (c_rarg3 != dst) __ mov(c_rarg3, dst);
+  if (BarrierSet::barrier_set()->barrier_set_assembler()->enable_oop_arraycopy_prologue()
+    && (basic_type == T_OBJECT || basic_type == T_ARRAY)) {
+      if (c_rarg3 != dst) __ mov(c_rarg3, dst);
   }
   address entry = StubRoutines::select_arraycopy_function(basic_type, aligned, disjoint, name, false);
   __ call_VM_leaf(entry, 0);

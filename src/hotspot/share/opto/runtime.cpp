@@ -772,6 +772,9 @@ const TypeFunc* OptoRuntime::fast_oop_arraycopy_Type() {
 
 const TypeFunc* OptoRuntime::checkcast_arraycopy_Type() {
   // An extension of fast_arraycopy_Type which adds type checking.
+  if (!BarrierSet::barrier_set()->barrier_set_assembler()->enable_oop_arraycopy_prologue()) {
+    return make_arraycopy_Type(ac_checkcast);
+  }
   // create input type (domain)
   int num_args      = 6;
   int num_size_args = 2;
