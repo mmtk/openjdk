@@ -2950,9 +2950,8 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
       value = count->as_register();
     } else if (count->as_register() != SHIFT_count) {
       // left is not ECX, count is not ECX
-      // save current ECX value, and move count to ECX
-      __ push(SHIFT_count);
-      __ mov(SHIFT_count, count->as_register());
+      // swap ECX and count registers
+      swap_reg(SHIFT_count, count->as_register());
     }
 
     switch (code) {
@@ -2968,8 +2967,8 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
       swap_reg(left->as_register(), count->as_register());
     } else if (count->as_register() != SHIFT_count) {
       // left is not ECX, count is not ECX
-      // restore ECX value
-      __ pop(SHIFT_count);
+      // swap ECX and count registers back
+      swap_reg(SHIFT_count, count->as_register());
     }
   } else if (left->is_double_cpu()) {
     Register lo = left->as_register_lo();
