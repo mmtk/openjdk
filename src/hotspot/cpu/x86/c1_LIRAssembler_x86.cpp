@@ -3489,7 +3489,8 @@ void LIR_Assembler::emit_arraycopy(LIR_OpArrayCopy* op) {
   const char *name;
   if (BarrierSet::barrier_set()->barrier_set_assembler()->enable_oop_arraycopy_prologue()
     && (basic_type == T_OBJECT || basic_type == T_ARRAY)) {
-      if (c_rarg3 != dst) __ mov(c_rarg3, dst);
+      // TODO: Support 32-bit x86
+      LP64_ONLY(if (c_rarg3 != dst) __ mov(c_rarg3, dst););
   }
   address entry = StubRoutines::select_arraycopy_function(basic_type, aligned, disjoint, name, false);
   __ call_VM_leaf(entry, 0);
