@@ -41,13 +41,19 @@ private:
 public:
   virtual void arraycopy_prologue(MacroAssembler* masm, DecoratorSet decorators, BasicType type,
                                   Register src, Register dst, Register count) {}
+  virtual void arraycopy_epilogue(MacroAssembler* masm, DecoratorSet decorators, BasicType type,
+                                  Register src, Register dst, Register count) {}
+  // Same as `arraycopy_epilogue`, but also passes the start address of the destination array.
+  // This is useful for some barriers that requires access to the destination objects. e.g. object barrier.
+  virtual void oop_arraycopy_prologue(MacroAssembler* masm, DecoratorSet decorators, BasicType type,
+                                   Register src, Register dst, Register count, Register dst_obj) {}
+  // To pass the extra argument to `oop_arraycopy_prologue`, the code assembler will have to spill or move data to some registers.
+  // Setting this flag off will completely disable `oop_arraycopy_prologue` as well as the spill and move cost.
+  // This can be used as a optimization for object barrier: The normal putfield ops still uses object barrier,
+  // but array copy operations uses field barrier.
   virtual bool enable_oop_arraycopy_prologue() const {
     return false;
   }
-  virtual void oop_arraycopy_prologue(MacroAssembler* masm, DecoratorSet decorators, BasicType type,
-                                   Register src, Register dst, Register count, Register dst_obj) {}
-  virtual void arraycopy_epilogue(MacroAssembler* masm, DecoratorSet decorators, BasicType type,
-                                  Register src, Register dst, Register count) {}
 
   virtual void load_at(MacroAssembler* masm, DecoratorSet decorators, BasicType type,
                        Register dst, Address src, Register tmp1, Register tmp_thread);
