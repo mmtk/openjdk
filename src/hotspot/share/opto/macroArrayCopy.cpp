@@ -1040,10 +1040,12 @@ Node* PhaseMacroExpand::generate_checkcast_arraycopy(Node** ctrl, MergeMemNode**
 
   const TypeFunc* call_type = OptoRuntime::checkcast_arraycopy_Type();
   Node* call;
+#ifdef TARGET_ARCH_x86
   if (BarrierSet::barrier_set()->barrier_set_assembler()->enable_oop_arraycopy_prologue())
     call = make_leaf_call(*ctrl, *mem, call_type, copyfunc_addr, "checkcast_arraycopy", adr_type,
                             src_start, dest_start, copy_length XTOP, check_offset XTOP, check_value, dest);
   else
+#endif
     call = make_leaf_call(*ctrl, *mem, call_type, copyfunc_addr, "checkcast_arraycopy", adr_type,
                             src_start, dest_start, copy_length XTOP, check_offset XTOP, check_value);
 
