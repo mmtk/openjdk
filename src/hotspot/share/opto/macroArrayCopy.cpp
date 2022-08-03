@@ -1107,12 +1107,16 @@ void PhaseMacroExpand::generate_unchecked_arraycopy(Node** ctrl, MergeMemNode** 
                           disjoint_bases, copyfunc_name, dest_uninitialized);
 
   Node* call;
+#ifdef TARGET_ARCH_x86
   if (BarrierSet::barrier_set()->barrier_set_assembler()->enable_oop_arraycopy_prologue() && (basic_elem_type == T_OBJECT || basic_elem_type == T_ARRAY)) {
     const TypeFunc* call_type = OptoRuntime::fast_oop_arraycopy_Type();
     guarantee(dest_offset != NULL, "");
     call = make_leaf_call(*ctrl, *mem, call_type, copyfunc_addr, "arraycopy2", adr_type,
                           src_start, dest_start, copy_length XTOP, dest);
-  } else {
+
+  } else
+#endif
+  {
     const TypeFunc* call_type = OptoRuntime::fast_arraycopy_Type();
     call = make_leaf_call(*ctrl, *mem, call_type, copyfunc_addr, copyfunc_name, adr_type,
                           src_start, dest_start, copy_length XTOP);
