@@ -771,6 +771,9 @@ const TypeFunc* OptoRuntime::fast_oop_arraycopy_Type() {
 }
 
 const TypeFunc* OptoRuntime::checkcast_arraycopy_Type() {
+#ifndef TARGET_ARCH_x86
+  return make_arraycopy_Type(ac_checkcast);
+#else
   // An extension of fast_arraycopy_Type which adds type checking.
   if (!BarrierSet::barrier_set()->barrier_set_assembler()->enable_oop_arraycopy_prologue()) {
     return make_arraycopy_Type(ac_checkcast);
@@ -799,6 +802,7 @@ const TypeFunc* OptoRuntime::checkcast_arraycopy_Type() {
   fields[TypeFunc::Parms+0] = TypeInt::INT; // status result, if needed
   const TypeTuple* range = TypeTuple::make(TypeFunc::Parms+retcnt, fields);
   return TypeFunc::make(domain, range);
+#endif
 }
 
 const TypeFunc* OptoRuntime::slow_arraycopy_Type() {
