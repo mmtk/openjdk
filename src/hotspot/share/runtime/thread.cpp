@@ -341,9 +341,10 @@ void Thread::initialize_thread_current() {
 
 void Thread::post_heap_initialize() {
   #ifdef INCLUDE_THIRD_PARTY_HEAP
-    if (UseThirdPartyHeap)
+    if (UseThirdPartyHeap) {
       assert(third_party_heap::MutatorContext::is_ready_to_bind(), "Third party heap needs to be ready to bind mutator by now.");
       third_party_heap_mutator = third_party_heap::MutatorContext::bind(current());
+    }
   #endif
 }
 
