@@ -2710,7 +2710,7 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args, bool* patch_m
                   VM_Version::internal_vm_info_string());
       #ifdef INCLUDE_THIRD_PARTY_HEAP
       jio_fprintf(defaultStream::output_stream(), "%s\n",
-                ThirdPartyHeap::version());
+                  ThirdPartyHeap::version());
       #endif
 
       vm_exit(0);
