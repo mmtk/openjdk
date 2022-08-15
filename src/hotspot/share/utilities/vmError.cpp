@@ -55,6 +55,9 @@
 #if INCLUDE_JFR
 #include "jfr/jfr.hpp"
 #endif
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+#include THIRD_PARTY_HEAP_FILE(thirdPartyHeap.hpp)
+#endif
 
 #ifndef PRODUCT
 #include <signal.h>
@@ -1031,6 +1034,9 @@ void VMError::report(outputStream* st, bool _verbose) {
 
      if (_verbose) {
        st->print_cr("vm_info: %s", Abstract_VM_Version::internal_vm_info_string());
+       #ifdef INCLUDE_THIRD_PARTY_HEAP
+       st->print_cr("heap_info: %s", ThirdPartyHeap::version());
+       #endif
        st->cr();
      }
 
