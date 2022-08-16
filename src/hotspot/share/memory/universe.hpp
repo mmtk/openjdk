@@ -422,7 +422,7 @@ private:
   }
   // Check for disjoint base compressed oops.
   static bool     narrow_oop_base_disjoint()        {
-    return false;//_narrow_oop._base != NULL && is_disjoint_heap_base_address(_narrow_oop._base);
+    return _narrow_oop._base != NULL && is_disjoint_heap_base_address(_narrow_oop._base);
   }
   // Check for real heapbased compressed oops.
   // We must subtract the base as the bits overlap.

@@ -2014,14 +2014,14 @@ public final class System {
      *
      * @return JNI_OK for success, JNI_ERR for failure
      */
-    private static int initPhase2(boolean printToStderr, boolean printStackTrace) {
-        try {
+    private static int initPhase2(boolean printToStderr, boolean printStackTrace) throws Exception {
+        // try {
             bootLayer = ModuleBootstrap.boot();
-        } catch (Exception | Error e) {
-            logInitException(printToStderr, printStackTrace,
-                             "Error occurred during initialization of boot layer", e);
-            return -1; // JNI_ERR
-        }
+        // } catch (Exception | Error e) {
+        //     logInitException(printToStderr, printStackTrace,
+        //                      "Error occurred during initialization of boot layer", e);
+        //     return -1; // JNI_ERR
+        // }
 
         // module system initialized
         VM.initLevel(2);
