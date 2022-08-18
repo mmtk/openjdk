@@ -1011,7 +1011,6 @@ void Metaspace::set_narrow_klass_base_and_shift(address metaspace_base, address 
     }
   }
 
-    printf("set_narrow_klass_base %p\n", lower_base);
   Universe::set_narrow_klass_base(lower_base);
 
   // CDS uses LogKlassAlignmentInBytes for narrow_klass_shift. See
@@ -1022,10 +1021,8 @@ void Metaspace::set_narrow_klass_base_and_shift(address metaspace_base, address 
   // can be used at same time as AOT code.
   if (!UseSharedSpaces
       && (uint64_t)(higher_address - lower_base) <= UnscaledClassSpaceMax) {
-    printf("set_narrow_klass_shift %d\n", 0);
     Universe::set_narrow_klass_shift(0);
   } else {
-    printf("set_narrow_klass_shift %d\n", LogKlassAlignmentInBytes);
     Universe::set_narrow_klass_shift(LogKlassAlignmentInBytes);
   }
   AOTLoader::set_narrow_klass_shift();
@@ -1046,7 +1043,6 @@ bool Metaspace::can_use_cds_with_metaspace_addr(char* metaspace_base, address cd
 
 // Try to allocate the metaspace at the requested addr.
 void Metaspace::allocate_metaspace_compressed_klass_ptrs(char* requested_addr, address cds_base) {
-  printf("allocate_metaspace_compressed_klass_ptrs %p\n", requested_addr);
   assert(!DumpSharedSpaces, "compress klass space is allocated by MetaspaceShared class.");
   assert(using_class_space(), "called improperly");
   assert(UseCompressedClassPointers, "Only use with CompressedKlassPtrs");
@@ -1165,7 +1161,6 @@ void Metaspace::allocate_metaspace_compressed_klass_ptrs(char* requested_addr, a
         "Could not allocate metaspace at a compatible address");
   }
 #endif
-  printf("set_narrow_klass_base_and_shift base=%p\n", metaspace_rs.base());
   set_narrow_klass_base_and_shift((address)metaspace_rs.base(),
                                   UseSharedSpaces ? (address)cds_base : 0);
 

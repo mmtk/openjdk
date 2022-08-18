@@ -810,9 +810,6 @@ jint Universe::initialize_heap() {
          Universe::narrow_oop_base() == NULL, "invalid value");
   assert(Universe::narrow_oop_shift() == LogMinObjAlignmentInBytes ||
          Universe::narrow_oop_shift() == 0, "invalid value");
-
-  printf("+ compressed oops: base=%p, shift=%zu\n", Universe::narrow_oop_base(), Universe::narrow_oop_shift());
-  printf("+ compressed klass: base=%p, shift=%zu\n", Universe::narrow_klass_base(), Universe::narrow_klass_shift());
 #endif
 
   // We will never reach the CATCH below since Exceptions::_throw will cause
