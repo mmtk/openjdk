@@ -744,65 +744,9 @@ const TypeFunc* OptoRuntime::fast_arraycopy_Type() {
   return make_arraycopy_Type(ac_fast);
 }
 
-const TypeFunc* OptoRuntime::fast_oop_arraycopy_Type() {
-  // create input type (domain)
-  int num_args      = 4;
-  int num_size_args = 1;
-  int argcnt = num_args;
-  LP64_ONLY(argcnt += num_size_args); // halfwords for lengths
-  const Type** fields = TypeTuple::fields(argcnt);
-  int argp = TypeFunc::Parms;
-  fields[argp++] = TypePtr::NOTNULL;    // src
-  fields[argp++] = TypePtr::NOTNULL;    // dest
-  while (num_size_args-- > 0) {
-    fields[argp++] = TypeX_X;               // size in whatevers (size_t)
-    LP64_ONLY(fields[argp++] = Type::HALF); // other half of long length
-  }
-  fields[argp++] = TypePtr::NOTNULL;    // dest object
-  assert(argp == TypeFunc::Parms+argcnt, "correct decoding of act");
-  const TypeTuple* domain = TypeTuple::make(TypeFunc::Parms+argcnt, fields);
-
-  // create result type if needed
-  int retcnt = 0;
-  fields = TypeTuple::fields(1);
-  fields[TypeFunc::Parms+0] = NULL; // void
-  const TypeTuple* range = TypeTuple::make(TypeFunc::Parms+retcnt, fields);
-  return TypeFunc::make(domain, range);
-}
-
 const TypeFunc* OptoRuntime::checkcast_arraycopy_Type() {
-#ifndef TARGET_ARCH_x86
-  return make_arraycopy_Type(ac_checkcast);
-#else
   // An extension of fast_arraycopy_Type which adds type checking.
-  if (!BarrierSet::barrier_set()->barrier_set_assembler()->enable_oop_arraycopy_prologue()) {
-    return make_arraycopy_Type(ac_checkcast);
-  }
-  // create input type (domain)
-  int num_args      = 6;
-  int num_size_args = 2;
-  int argcnt = num_args;
-  LP64_ONLY(argcnt += num_size_args); // halfwords for lengths
-  const Type** fields = TypeTuple::fields(argcnt);
-  int argp = TypeFunc::Parms;
-  fields[argp++] = TypePtr::NOTNULL;    // src
-  fields[argp++] = TypePtr::NOTNULL;    // dest
-  while (num_size_args-- > 0) {
-    fields[argp++] = TypeX_X;               // size in whatevers (size_t)
-    LP64_ONLY(fields[argp++] = Type::HALF); // other half of long length
-  }
-  fields[argp++] = TypePtr::NOTNULL;  // super_klass
-  fields[argp++] = TypePtr::NOTNULL;  // dest object
-  assert(argp == TypeFunc::Parms+argcnt, "correct decoding of act");
-  const TypeTuple* domain = TypeTuple::make(TypeFunc::Parms+argcnt, fields);
-
-  // create result type if needed
-  int retcnt = 1;
-  fields = TypeTuple::fields(1);
-  fields[TypeFunc::Parms+0] = TypeInt::INT; // status result, if needed
-  const TypeTuple* range = TypeTuple::make(TypeFunc::Parms+retcnt, fields);
-  return TypeFunc::make(domain, range);
-#endif
+  return make_arraycopy_Type(ac_checkcast);
 }
 
 const TypeFunc* OptoRuntime::slow_arraycopy_Type() {
