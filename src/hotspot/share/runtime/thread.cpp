@@ -332,9 +332,20 @@ void Thread::initialize_thread_current() {
   ThreadLocalStorage::set_thread(this);
 #ifdef INCLUDE_THIRD_PARTY_HEAP
   if (UseThirdPartyHeap)
-    third_party_heap_mutator = third_party_heap::MutatorContext::bind(current());
+    if (third_party_heap::MutatorContext::is_ready_to_bind()) {
+      third_party_heap_mutator = third_party_heap::MutatorContext::bind(current());
+    }
 #endif
   assert(Thread::current() == ThreadLocalStorage::thread(), "TLS mismatch!");
+}
+
+void Thread::post_heap_initialize() {
+  #ifdef INCLUDE_THIRD_PARTY_HEAP
+    if (UseThirdPartyHeap) {
+      assert(third_party_heap::MutatorContext::is_ready_to_bind(), "Third party heap needs to be ready to bind mutator by now.");
+      third_party_heap_mutator = third_party_heap::MutatorContext::bind(current());
+    }
+  #endif
 }
 
 void Thread::clear_thread_current() {
