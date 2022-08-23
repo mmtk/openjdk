@@ -2937,28 +2937,30 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
   // * count must be already in ECX (guaranteed by LinearScan)
   // * left and dest must be equal
   // * tmp must be unused
-    // FIXME(wenyuzhao):
-    // The shift-op generator assumes that the count register is ECX.
-    // However, looks like when using the shift ops in C1 LIR for building write barriers,
-    // C1's linear scan reg allocator cannot correctly assign ECX to the count register.
-    // So for this case, we simply swap register data around, so that the count value
-    // can be put in ECX correctly.
-    // TODO: A better solution would be modifying and fixing the register allocator.
+  //
+  // FIXME(wenyuzhao):
+  // The shift-op generator assumes that the count register is ECX.
+  // However, looks like when using the shift ops in C1 LIR for building write barriers,
+  // C1's linear scan reg allocator cannot correctly assign ECX to the count register.
+  // So for this case, we simply swap register data around, so that the count value
+  // can be put in ECX correctly.
+  // TODO: A better solution would be modifying and fixing the register allocator.
   assert(left->is_single_cpu() || count->as_register() == SHIFT_count, "count must be in ECX");
   assert(left == dest, "left and dest must be equal");
   assert(tmp->is_illegal(), "wasting a register if tmp is allocated");
 
   if (left->is_single_cpu()) {
     Register value = left->as_register();
-    if (left->as_register() == SHIFT_count) {
-      // left is ECX, count is not ECX
-      // swap left and count registers
-      swap_reg(left->as_register(), count->as_register());
-      value = count->as_register();
-    } else if (count->as_register() != SHIFT_count) {
-      // left is not ECX, count is not ECX
-      // swap ECX and count registers
+    if (count->as_register() != SHIFT_count) {
+      // count is not ECX
+      // swap ECX and count register
       swap_reg(SHIFT_count, count->as_register());
+      if (left->as_register() == SHIFT_count) {
+        // left is ECX. count is not ECX.
+        // The value of left has been moved to count register/
+        // Use count register as left
+        value = count->as_register();
+      }
     }
 
     switch (code) {
@@ -2968,12 +2970,8 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
       default: ShouldNotReachHere();
     }
 
-    if (left->as_register() == SHIFT_count) {
-      // left is ECX, count is not ECX
-      // swap left and count registers back
-      swap_reg(left->as_register(), count->as_register());
-    } else if (count->as_register() != SHIFT_count) {
-      // left is not ECX, count is not ECX
+    if (count->as_register() != SHIFT_count) {
+      // count is not ECX
       // swap ECX and count registers back
       swap_reg(SHIFT_count, count->as_register());
     }
