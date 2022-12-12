@@ -1318,6 +1318,9 @@ class java_lang_ClassLoader : AllStatic {
   static int unnamedModule_offset;
 
  public:
+  static inline int loader_data_offset() {
+    return _loader_data_offset;
+  }
   static void compute_offsets();
   static void serialize_offsets(SerializeClosure* f) NOT_CDS_RETURN;
 
