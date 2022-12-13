@@ -237,11 +237,12 @@ class Universe: AllStatic {
     assert(m != NULL, "mirror not initialized");
     return m;
   }
-
+public:
   static void     set_narrow_oop_base(address base) {
     assert(UseCompressedOops, "no compressed oops?");
     _narrow_oop._base    = base;
   }
+private:
   static void     set_narrow_klass_base(address base) {
     assert(UseCompressedClassPointers, "no compressed klass ptrs?");
     _narrow_klass._base   = base;
@@ -445,7 +446,7 @@ class Universe: AllStatic {
   static address  narrow_ptrs_base()                      { return _narrow_ptrs_base; }
 
   static void     print_compressed_oops_mode(outputStream* st);
-
+public:
   // this is set in vm_version on sparc (and then reset in universe afaict)
   static void     set_narrow_oop_shift(int shift)         {
     _narrow_oop._shift   = shift;
