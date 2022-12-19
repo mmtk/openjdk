@@ -446,7 +446,7 @@ private:
   static address  narrow_ptrs_base()                      { return _narrow_ptrs_base; }
 
   static void     print_compressed_oops_mode(outputStream* st);
-public:
+
   // this is set in vm_version on sparc (and then reset in universe afaict)
   static void     set_narrow_oop_shift(int shift)         {
     _narrow_oop._shift   = shift;
