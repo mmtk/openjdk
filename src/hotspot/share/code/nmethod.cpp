@@ -1597,7 +1597,7 @@ void nmethod::oops_do(OopClosure* f, bool allow_zombie) {
           f->do_oop(r->oop_addr());
         }
         if (UseThirdPartyHeap) {
-          if (auto narrow_oop_slot = r->narrow_oop_slot()) {
+          if (narrowOop* narrow_oop_slot = r->narrow_oop_slot()) {
             f->do_oop((narrowOop*) narrow_oop_slot);
           }
         }
