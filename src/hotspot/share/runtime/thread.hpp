@@ -396,7 +396,9 @@ class Thread: public ThreadShadow {
 
   // Manage Thread::current()
   void initialize_thread_current();
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   void post_heap_initialize();
+#endif
   static void clear_thread_current(); // TLS cleanup needed before threads terminate
 
  protected:

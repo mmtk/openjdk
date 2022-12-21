@@ -689,7 +689,9 @@ jint universe_init() {
   if (status != JNI_OK) {
     return status;
   }
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   Thread::current()->post_heap_initialize();
+#endif
 
   SystemDictionary::initialize_oop_storage();
 

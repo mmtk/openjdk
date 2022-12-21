@@ -45,7 +45,11 @@
 
 VM_GC_Operation::~VM_GC_Operation() {
   CollectedHeap* ch = Universe::heap();
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   if (!UseThirdPartyHeap) ch->soft_ref_policy()->set_all_soft_refs_clear(false);
+#else
+  ch->soft_ref_policy()->set_all_soft_refs_clear(false);
+#endif
 }
 
 // The same dtrace probe can't be inserted in two different files, so we

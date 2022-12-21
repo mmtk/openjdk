@@ -1278,9 +1278,11 @@ void java_lang_Class::set_oop_size(HeapWord* java_class, int size) {
   *(int*)(((char*)java_class) + _oop_size_offset) = size;
 }
 
+#ifdef INCLUDE_THIRD_PARTY_HEAP
 int  java_lang_Class::static_oop_field_count_offset() {
   return _static_oop_field_count_offset;
 }
+#endif
 
 int  java_lang_Class::static_oop_field_count(oop java_class) {
   assert(_static_oop_field_count_offset != 0, "must be set");

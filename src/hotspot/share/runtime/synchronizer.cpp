@@ -1004,12 +1004,20 @@ void ObjectSynchronizer::global_used_oops_do(OopClosure* f) {
 }
 
 void ObjectSynchronizer::thread_local_used_oops_do(Thread* thread, OopClosure* f) {
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   assert(UseThirdPartyHeap || SafepointSynchronize::is_at_safepoint(), "must be at safepoint");
+#else
+  assert(SafepointSynchronize::is_at_safepoint(), "must be at safepoint");
+#endif
   list_oops_do(thread->omInUseList, f);
 }
 
 void ObjectSynchronizer::list_oops_do(ObjectMonitor* list, OopClosure* f) {
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   assert(UseThirdPartyHeap || SafepointSynchronize::is_at_safepoint(), "must be at safepoint");
+#else
+  assert(SafepointSynchronize::is_at_safepoint(), "must be at safepoint");
+#endif
   ObjectMonitor* mid;
   for (mid = list; mid != NULL; mid = mid->FreeNext) {
     if (mid->object() != NULL) {

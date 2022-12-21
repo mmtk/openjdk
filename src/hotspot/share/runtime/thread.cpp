@@ -339,14 +339,14 @@ void Thread::initialize_thread_current() {
   assert(Thread::current() == ThreadLocalStorage::thread(), "TLS mismatch!");
 }
 
+#ifdef INCLUDE_THIRD_PARTY_HEAP
 void Thread::post_heap_initialize() {
-  #ifdef INCLUDE_THIRD_PARTY_HEAP
     if (UseThirdPartyHeap) {
       assert(third_party_heap::MutatorContext::is_ready_to_bind(), "Third party heap needs to be ready to bind mutator by now.");
       third_party_heap_mutator = third_party_heap::MutatorContext::bind(current());
     }
-  #endif
 }
+#endif
 
 void Thread::clear_thread_current() {
   assert(Thread::current() == ThreadLocalStorage::thread(), "TLS mismatch!");
@@ -3911,8 +3911,10 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   LogConfiguration::post_initialize();
   Metaspace::post_initialize();
 
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   // This happens after initialize_java_lang_classes. For TPH, we may use Java classes.
   Universe::heap()->enable_collection();
+#endif
 
   HOTSPOT_VM_INIT_END();
 

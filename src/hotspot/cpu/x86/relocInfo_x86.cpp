@@ -136,6 +136,7 @@ void Relocation::pd_set_call_destination(address x) {
   }
 }
 
+#ifdef INCLUDE_THIRD_PARTY_HEAP
 narrowOop* Relocation::narrow_oop_slot() {
   if (!is_data()) return NULL;
   typedef Assembler::WhichOperand WhichOperand;
@@ -143,7 +144,7 @@ narrowOop* Relocation::narrow_oop_slot() {
   if (which != Assembler::narrow_oop_operand) return NULL;
   return (narrowOop*) Assembler::locate_operand(addr(), which);
 }
-
+#endif
 
 address* Relocation::pd_address_in_code() {
   // All embedded Intel addresses are stored in 32-bit words.
