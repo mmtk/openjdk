@@ -786,7 +786,7 @@ define_pd_global(uint64_t,MaxRAM,                    1ULL*G);
           "Register finalizable objects at end of Object.<init> or "        \
           "after allocation")                                               \
                                                                             \
-  product(bool, RegisterReferences, true,                                   \
+  develop(bool, RegisterReferences, true,                                   \
           "Tell whether the VM should register soft/weak/final/phantom "    \
           "references")                                                     \
                                                                             \
@@ -1404,7 +1404,7 @@ define_pd_global(uint64_t,MaxRAM,                    1ULL*G);
   develop(bool, UseLoopSafepoints, true,                                    \
           "Generate Safepoint nodes in every loop")                         \
                                                                             \
-  product(intx, FastAllocateSizeLimit, 128*K,                               \
+  develop(intx, FastAllocateSizeLimit, 128*K,                               \
           /* Note:  This value is zero mod 1<<13 for a cheap sparc set. */  \
           "Inline allocations larger than this in doublewords must go slow")\
                                                                             \
