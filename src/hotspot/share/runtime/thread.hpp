@@ -2192,7 +2192,6 @@ class Threads: AllStatic {
   static void initialize_jsr292_core_classes(TRAPS);
 
  public:
-  static inline JavaThread* get_thread_list() { return _thread_list; }
   // Thread management
   // force_daemon is a concession to JNI, where we may need to add a
   // thread to the thread list before allocating its thread object

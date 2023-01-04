@@ -80,9 +80,6 @@
 #ifdef COMPILER1
 #include "c1/c1_Compiler.hpp"
 #endif
-#ifdef INCLUDE_THIRD_PARTY_HEAP
-#include "gc/shared/gc_globals.hpp"
-#endif
 
 #ifdef DTRACE_ENABLED
 
