@@ -2071,7 +2071,7 @@ public:
     tty->print_cr("*** non-oop " PTR_FORMAT " found at " PTR_FORMAT " (offset %d)",
                   p2i(*p), p2i(p), (int)((intptr_t)p - (intptr_t)_nm));
   }
-  virtual void do_oop(narrowOop* p) { ShouldNotReachHere(); }
+  virtual void do_oop(narrowOop* p) {}
 };
 
 void nmethod::verify() {
