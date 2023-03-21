@@ -2937,7 +2937,7 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
   // * count must be already in ECX (guaranteed by LinearScan)
   // * left and dest must be equal
   // * tmp must be unused
-  //
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   // FIXME(wenyuzhao):
   // The shift-op generator assumes that the count register is ECX.
   // However, looks like when using the shift ops in C1 LIR for building write barriers,
@@ -2945,7 +2945,6 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
   // So for this case, we simply swap register data around, so that the count value
   // can be put in ECX correctly.
   // TODO: A better solution would be modifying and fixing the register allocator.
-#ifdef INCLUDE_THIRD_PARTY_HEAP
   assert(left->is_single_cpu() || count->as_register() == SHIFT_count, "count must be in ECX");
 #else
   assert(count->as_register() == SHIFT_count, "count must be in ECX");
