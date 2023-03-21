@@ -301,7 +301,11 @@ public:
 
 template<typename T>
 inline T* barrier_set_cast(BarrierSet* bs) {
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   assert(UseThirdPartyHeap || bs->is_a(BarrierSet::GetName<T>::value), "wrong type of barrier set");
+#else
+  assert(bs->is_a(BarrierSet::GetName<T>::value), "wrong type of barrier set");
+#endif
   return static_cast<T*>(bs);
 }
 

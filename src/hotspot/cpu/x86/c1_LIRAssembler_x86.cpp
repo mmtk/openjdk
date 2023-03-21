@@ -2937,7 +2937,7 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
   // * count must be already in ECX (guaranteed by LinearScan)
   // * left and dest must be equal
   // * tmp must be unused
-  //
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   // FIXME(wenyuzhao):
   // The shift-op generator assumes that the count register is ECX.
   // However, looks like when using the shift ops in C1 LIR for building write barriers,
@@ -2946,11 +2946,15 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
   // can be put in ECX correctly.
   // TODO: A better solution would be modifying and fixing the register allocator.
   assert(left->is_single_cpu() || count->as_register() == SHIFT_count, "count must be in ECX");
+#else
+  assert(count->as_register() == SHIFT_count, "count must be in ECX");
+#endif
   assert(left == dest, "left and dest must be equal");
   assert(tmp->is_illegal(), "wasting a register if tmp is allocated");
 
   if (left->is_single_cpu()) {
     Register value = left->as_register();
+#ifdef INCLUDE_THIRD_PARTY_HEAP
     if (count->as_register() != SHIFT_count) {
       // count is not ECX
       // swap ECX and count register
@@ -2962,6 +2966,9 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
         value = count->as_register();
       }
     }
+#else
+  assert(value != SHIFT_count, "left cannot be ECX");
+#endif
 
     switch (code) {
       case lir_shl:  __ shll(value); break;
@@ -2970,11 +2977,13 @@ void LIR_Assembler::shift_op(LIR_Code code, LIR_Opr left, LIR_Opr count, LIR_Opr
       default: ShouldNotReachHere();
     }
 
+#ifdef INCLUDE_THIRD_PARTY_HEAP
     if (count->as_register() != SHIFT_count) {
       // count is not ECX
       // swap ECX and count registers back
       swap_reg(SHIFT_count, count->as_register());
     }
+#endif
   } else if (left->is_double_cpu()) {
     Register lo = left->as_register_lo();
     Register hi = left->as_register_hi();

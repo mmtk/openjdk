@@ -369,7 +369,7 @@ public:
   // cleared.)
   //
   // n_threads - Number of threads executing the sub-tasks.
-  uint all_tasks_completed(uint n_threads);
+  void all_tasks_completed(uint n_threads);
 
   // Destructor.
   ~SubTasksDone();

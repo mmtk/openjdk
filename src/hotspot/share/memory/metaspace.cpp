@@ -1620,8 +1620,14 @@ size_t ClassLoaderMetaspace::allocated_chunks_bytes() const {
 
 void ClassLoaderMetaspace::deallocate(MetaWord* ptr, size_t word_size, bool is_class) {
   Metaspace::assert_not_frozen();
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+  assert(!SafepointSynchronize::is_at_safepoint()
+         || Thread::current()->is_VM_thread()
+         || UseThirdPartyHeap, "should be the VM thread");
+#else
   assert(!SafepointSynchronize::is_at_safepoint()
          || Thread::current()->is_VM_thread(), "should be the VM thread");
+#endif
 
   DEBUG_ONLY(Atomic::inc(&g_internal_statistics.num_external_deallocs));
 
