@@ -794,6 +794,9 @@ class Relocation {
   CompiledMethod* code()            const { return binding()->code(); }
   nmethod*        code_as_nmethod() const { return binding()->code_as_nmethod(); }
   bool            addr_in_const()   const { return binding()->addr_in_const(); }
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+  narrowOop*      narrow_oop_slot();
+#endif
  protected:
   short*   data()         const { return binding()->data(); }
   int      datalen()      const { return binding()->datalen(); }

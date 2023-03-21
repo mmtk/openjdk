@@ -237,11 +237,12 @@ class Universe: AllStatic {
     assert(m != NULL, "mirror not initialized");
     return m;
   }
-
+public:
   static void     set_narrow_oop_base(address base) {
     assert(UseCompressedOops, "no compressed oops?");
     _narrow_oop._base    = base;
   }
+private:
   static void     set_narrow_klass_base(address base) {
     assert(UseCompressedClassPointers, "no compressed klass ptrs?");
     _narrow_klass._base   = base;

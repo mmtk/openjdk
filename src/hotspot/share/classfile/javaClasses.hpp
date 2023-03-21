@@ -318,7 +318,9 @@ class java_lang_Class : AllStatic {
   static void set_source_file(oop java_class, oop source_file);
 
   static int oop_size(oop java_class);
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   static int static_oop_field_count_offset();
+#endif
   static void set_oop_size(HeapWord* java_class, int size);
   static int static_oop_field_count(oop java_class);
   static void set_static_oop_field_count(oop java_class, int size);
@@ -1318,6 +1320,11 @@ class java_lang_ClassLoader : AllStatic {
   static int unnamedModule_offset;
 
  public:
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+  static inline int loader_data_offset() {
+    return _loader_data_offset;
+  }
+#endif
   static void compute_offsets();
   static void serialize_offsets(SerializeClosure* f) NOT_CDS_RETURN;
 

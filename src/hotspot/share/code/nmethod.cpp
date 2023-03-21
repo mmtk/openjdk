@@ -1596,6 +1596,13 @@ void nmethod::oops_do(OopClosure* f, bool allow_zombie) {
         if (r->oop_is_immediate() && r->oop_value() != NULL) {
           f->do_oop(r->oop_addr());
         }
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+        if (UseThirdPartyHeap) {
+          if (narrowOop* narrow_oop_slot = r->narrow_oop_slot()) {
+            f->do_oop((narrowOop*) narrow_oop_slot);
+          }
+        }
+#endif
       }
     }
   }
@@ -2064,7 +2071,7 @@ public:
     tty->print_cr("*** non-oop " PTR_FORMAT " found at " PTR_FORMAT " (offset %d)",
                   p2i(*p), p2i(p), (int)((intptr_t)p - (intptr_t)_nm));
   }
-  virtual void do_oop(narrowOop* p) { ShouldNotReachHere(); }
+  virtual void do_oop(narrowOop* p) { NOT_THIRD_PARTY_HEAP(ShouldNotReachHere();) }
 };
 
 void nmethod::verify() {

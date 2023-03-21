@@ -217,7 +217,9 @@ class CollectedHeap : public CHeapObj<mtGC> {
   // Notify the heap that now collection is allowed.
   // This is added for third party heap to avoid a third party heap starts any collection attempt
   // before the VM is ready.
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   virtual void enable_collection() {}
+#endif
 
   // Stop any onging concurrent work and prepare for exit.
   virtual void stop() {}
@@ -225,7 +227,9 @@ class CollectedHeap : public CHeapObj<mtGC> {
   // Stop and resume concurrent GC threads interfering with safepoint operations
   virtual void safepoint_synchronize_begin() {}
   virtual void safepoint_synchronize_end() {}
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   virtual void report_java_thread_yield(JavaThread* thread) {}
+#endif
 
   void initialize_reserved_region(HeapWord *start, HeapWord *end);
   MemRegion reserved_region() const { return _reserved; }

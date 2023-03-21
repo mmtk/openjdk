@@ -311,7 +311,7 @@
   declare_constant(CollectedHeap::Parallel)                                 \
   declare_constant(CollectedHeap::CMS)                                      \
   declare_constant(CollectedHeap::G1)                                       \
-  declare_constant(CollectedHeap::ThirdPartyHeap)                           \
+  THIRD_PARTY_HEAP_ONLY(declare_constant(CollectedHeap::ThirdPartyHeap))    \
                                                                             \
   /* constants from Generation::Name enum */                                \
                                                                             \
