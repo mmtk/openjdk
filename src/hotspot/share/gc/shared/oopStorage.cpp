@@ -474,7 +474,7 @@ oop* OopStorage::allocate() {
   }
   log_info(oopstorage, ref)("%s: allocated " PTR_FORMAT, name(), p2i(result));
 #ifdef INCLUDE_THIRD_PARTY_HEAP
-    Universe::heap()->register_new_weak_handle(result);
+  Universe::heap()->register_new_weak_handle(result);
 #endif
   return result;
 }
