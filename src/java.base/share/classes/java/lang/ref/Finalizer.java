@@ -30,6 +30,7 @@ import java.security.AccessController;
 import jdk.internal.misc.JavaLangAccess;
 import jdk.internal.misc.SharedSecrets;
 import jdk.internal.misc.VM;
+import java.util.ArrayList;
 
 final class Finalizer extends FinalReference<Object> { /* Package-private; must be in
                                                           same package as the Reference
@@ -38,7 +39,8 @@ final class Finalizer extends FinalReference<Object> { /* Package-private; must 
     private static ReferenceQueue<Object> queue = new ReferenceQueue<>();
 
     /** Head of doubly linked list of Finalizers awaiting finalization. */
-    private static Finalizer unfinalized = null;
+    private static ArrayList<Finalizer> unfinalized = new ArrayList<>();
+    private static int unfinalizedCursor = 0;
 
     /** Lock guarding access to unfinalized list. */
     private static final Object lock = new Object();
@@ -49,11 +51,12 @@ final class Finalizer extends FinalReference<Object> { /* Package-private; must 
         super(finalizee, queue);
         // push onto unfinalized
         synchronized (lock) {
-            if (unfinalized != null) {
-                this.next = unfinalized;
-                unfinalized.prev = this;
+            if (unfinalizedCursor < unfinalized.size()) {
+                unfinalized.set(unfinalizedCursor, this);
+            } else {
+                unfinalized.add(this);
             }
-            unfinalized = this;
+            unfinalizedCursor += 1;
         }
     }
 
@@ -68,17 +71,18 @@ final class Finalizer extends FinalReference<Object> { /* Package-private; must 
 
     private void runFinalizer(JavaLangAccess jla) {
         synchronized (lock) {
-            if (this.next == this)      // already finalized
+            int index = -1;
+            for (int i = 0; i < unfinalizedCursor; i++) {
+                if (unfinalized.get(i) == this) {
+                    index = i;
+                    break;
+                }
+            }
+            if (index == -1)
                 return;
-            // unlink from unfinalized
-            if (unfinalized == this)
-                unfinalized = this.next;
-            else
-                this.prev.next = this.next;
-            if (this.next != null)
-                this.next.prev = this.prev;
-            this.prev = null;
-            this.next = this;           // mark as finalized
+            unfinalized.set(index, unfinalized.get(unfinalizedCursor - 1));
+            unfinalized.set(unfinalizedCursor - 1, null);
+            unfinalizedCursor -= 1;
         }
 
         try {
