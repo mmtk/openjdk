@@ -117,13 +117,13 @@ class MacroAssembler: public Assembler {
     if (op == 0xEB || (op & 0xF0) == 0x70) {
       // short offset operators (jmp and jcc)
       char* disp = (char*) &branch[1];
-      int imm8 = target - (address) &disp[1];
+      int imm8 = checked_cast<int>(target - (address) &disp[1]);
       guarantee(this->is8bit(imm8), "Short forward jump exceeds 8-bit offset at %s:%d",
                 file == nullptr ? "<null>" : file, line);
-      *disp = imm8;
+      *disp = (char)imm8;
     } else {
       int* disp = (int*) &branch[(op == 0x0F || op == 0xC7)? 2: 1];
-      int imm32 = target - (address) &disp[1];
+      int imm32 = checked_cast<int>(target - (address) &disp[1]);
       *disp = imm32;
     }
   }
@@ -212,8 +212,8 @@ class MacroAssembler: public Assembler {
   // Alignment
   void align32();
   void align64();
-  void align(int modulus);
-  void align(int modulus, int target);
+  void align(uint modulus);
+  void align(uint modulus, uint target);
 
   void post_call_nop();
   // A 5 byte nop that is safe for patching (see patch_verified_entry)
@@ -602,6 +602,8 @@ public:
   );
   void zero_memory(Register address, Register length_in_bytes, int offset_in_bytes, Register temp);
 
+  void population_count(Register dst, Register src, Register scratch1, Register scratch2);
+
   // interface method calling
   void lookup_interface_method(Register recv_klass,
                                Register intf_klass,
@@ -652,8 +654,46 @@ public:
                                      Label* L_success,
                                      Label* L_failure,
                                      bool set_cond_codes = false);
+  void hashed_check_klass_subtype_slow_path(Register sub_klass,
+                                     Register super_klass,
+                                     Register temp_reg,
+                                     Register temp2_reg,
+                                     Label* L_success,
+                                     Label* L_failure,
+                                     bool set_cond_codes = false);
 
-  // Simplified, combined version, good for typical uses.
+  // As above, but with a constant super_klass.
+  // The result is in Register result, not the condition codes.
+  void lookup_secondary_supers_table(Register sub_klass,
+                                     Register super_klass,
+                                     Register temp1,
+                                     Register temp2,
+                                     Register temp3,
+                                     Register temp4,
+                                     Register result,
+                                     u1 super_klass_slot);
+
+  void lookup_secondary_supers_table_slow_path(Register r_super_klass,
+                                               Register r_array_base,
+                                               Register r_array_index,
+                                               Register r_bitmap,
+                                               Register temp1,
+                                               Register temp2,
+                                               Label* L_success,
+                                               Label* L_failure = nullptr);
+
+  void verify_secondary_supers_table(Register r_sub_klass,
+                                     Register r_super_klass,
+                                     Register expected,
+                                     Register temp1,
+                                     Register temp2,
+                                     Register temp3);
+
+  void repne_scanq(Register addr, Register value, Register count, Register limit,
+                   Label* L_success,
+                   Label* L_failure = nullptr);
+
+    // Simplified, combined version, good for typical uses.
   // Falls through on failure.
   void check_klass_subtype(Register sub_klass,
                            Register super_klass,
@@ -757,7 +797,7 @@ public:
   void addptr(Register dst, int32_t src);
   void addptr(Register dst, Register src);
   void addptr(Register dst, RegisterOrConstant src) {
-    if (src.is_constant()) addptr(dst, src.as_constant());
+    if (src.is_constant()) addptr(dst, checked_cast<int>(src.as_constant()));
     else                   addptr(dst, src.as_register());
   }
 
@@ -884,6 +924,7 @@ public:
 
   void testptr(Register src, int32_t imm32) {  LP64_ONLY(testq(src, imm32)) NOT_LP64(testl(src, imm32)); }
   void testptr(Register src1, Address src2) { LP64_ONLY(testq(src1, src2)) NOT_LP64(testl(src1, src2)); }
+  void testptr(Address src, int32_t imm32) {  LP64_ONLY(testq(src, imm32)) NOT_LP64(testl(src, imm32)); }
   void testptr(Register src1, Register src2);
 
   void xorptr(Register dst, Register src) { LP64_ONLY(xorq(dst, src)) NOT_LP64(xorl(dst, src)); }
@@ -2030,8 +2071,8 @@ public:
 
   void check_stack_alignment(Register sp, const char* msg, unsigned bias = 0, Register tmp = noreg);
 
-  void fast_lock_impl(Register obj, Register hdr, Register thread, Register tmp, Label& slow);
-  void fast_unlock_impl(Register obj, Register hdr, Register tmp, Label& slow);
+  void lightweight_lock(Register obj, Register hdr, Register thread, Register tmp, Label& slow);
+  void lightweight_unlock(Register obj, Register hdr, Register tmp, Label& slow);
 };
 
 /**

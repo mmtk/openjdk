@@ -124,13 +124,13 @@ frame os::fetch_frame_from_context(const void* ucVoid) {
   intptr_t* sp;
   intptr_t* fp;
   address epc = fetch_frame_from_context(ucVoid, &sp, &fp);
-  // Avoid crash during crash if pc broken.
-  if (epc) {
-    frame fr(sp, epc);
-    return fr;
+  if (epc == nullptr || !is_readable_pointer(epc)) {
+    // Try to recover from calling into bad memory
+    // Assume new frame has not been set up, the same as
+    // compiled frame stack bang
+    return fetch_compiled_frame_from_context(ucVoid);
   }
-  frame fr(sp);
-  return fr;
+  return frame(sp, epc);
 }
 
 frame os::fetch_compiled_frame_from_context(const void* ucVoid) {
@@ -331,9 +331,7 @@ bool PosixSignals::pd_hotspot_signal_handler(int sig, siginfo_t* info,
 
         // End life with a fatal error, message and detail message and the context.
         // Note: no need to do any post-processing here (e.g. signal chaining)
-        va_list va_dummy = nullptr;
-        VMError::report_and_die(thread, uc, nullptr, 0, msg, detail_msg, va_dummy);
-        va_end(va_dummy);
+        VMError::report_and_die(thread, uc, nullptr, 0, msg, "%s", detail_msg);
 
         ShouldNotReachHere();
       }
@@ -450,31 +448,8 @@ void os::print_context(outputStream *st, const void *context) {
   st->cr();
 }
 
-void os::print_tos_pc(outputStream *st, const void *context) {
-  if (context == nullptr) return;
-
-  const ucontext_t* uc = (const ucontext_t*)context;
-
-  address sp = (address)os::Aix::ucontext_get_sp(uc);
-  print_tos(st, sp);
-  st->cr();
-
-  // Note: it may be unsafe to inspect memory near pc. For example, pc may
-  // point to garbage if entry point in an nmethod is corrupted. Leave
-  // this at the end, and hope for the best.
-  address pc = os::Posix::ucontext_get_pc(uc);
-  print_instructions(st, pc, /*instrsize=*/4);
-  st->cr();
-
-  // Try to decode the instructions.
-  st->print_cr("Decoded instructions: (pc=" PTR_FORMAT ")", pc);
-  st->print("<TODO: PPC port - print_context>");
-  // TODO: PPC port Disassembler::decode(pc, 16, 16, st);
-  st->cr();
-}
-
 void os::print_register_info(outputStream *st, const void *context, int& continuation) {
-  const int register_count = 32 /* r0-r32 */ + 3 /* pc, lr, sp */;
+  const int register_count = 32 /* r0-r31 */ + 3 /* pc, lr, sp */;
   int n = continuation;
   assert(n >= 0 && n <= register_count, "Invalid continuation value");
   if (context == nullptr || n == register_count) {

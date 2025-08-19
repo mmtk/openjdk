@@ -1388,6 +1388,11 @@ void GraphBuilder::jsr(int dest) {
   // If the bytecodes are strange (jumping out of a jsr block) then we
   // might end up trying to re-parse a block containing a jsr which
   // has already been activated. Watch for this case and bail out.
+  if (next_bci() >= method()->code_size()) {
+    // This can happen if the subroutine does not terminate with a ret,
+    // effectively turning the jsr into a goto.
+    BAILOUT("too-complicated jsr/ret structure");
+  }
   for (ScopeData* cur_scope_data = scope_data();
        cur_scope_data != nullptr && cur_scope_data->parsing_jsr() && cur_scope_data->scope() == scope();
        cur_scope_data = cur_scope_data->parent()) {
@@ -2087,9 +2092,10 @@ void GraphBuilder::invoke(Bytecodes::Code code) {
         assert(singleton != declared_interface, "not a unique implementor");
         cha_monomorphic_target = target->find_monomorphic_target(calling_klass, declared_interface, singleton);
         if (cha_monomorphic_target != nullptr) {
-          if (cha_monomorphic_target->holder() != compilation()->env()->Object_klass()) {
-            ciInstanceKlass* holder = cha_monomorphic_target->holder();
-            ciInstanceKlass* constraint = (holder->is_subtype_of(singleton) ? holder : singleton); // avoid upcasts
+          ciInstanceKlass* holder = cha_monomorphic_target->holder();
+          ciInstanceKlass* constraint = (holder->is_subtype_of(singleton) ? holder : singleton); // avoid upcasts
+          if (holder != compilation()->env()->Object_klass() &&
+              (!type_is_exact || receiver_klass->is_subtype_of(constraint))) {
             actual_recv = declared_interface;
 
             // insert a check it's really the expected class.
@@ -2102,7 +2108,7 @@ void GraphBuilder::invoke(Bytecodes::Code code) {
 
             dependency_recorder()->assert_unique_implementor(declared_interface, singleton);
           } else {
-            cha_monomorphic_target = nullptr; // subtype check against Object is useless
+            cha_monomorphic_target = nullptr;
           }
         }
       }
@@ -3715,6 +3721,9 @@ bool GraphBuilder::try_inline_intrinsics(ciMethod* callee, bool ignore_return) {
 bool GraphBuilder::try_inline_jsr(int jsr_dest_bci) {
   // Introduce a new callee continuation point - all Ret instructions
   // will be replaced with Gotos to this point.
+  if (next_bci() >= method()->code_size()) {
+    return false;
+  }
   BlockBegin* cont = block_at(next_bci());
   assert(cont != nullptr, "continuation must exist (BlockListBuilder starts a new block after a jsr");
 

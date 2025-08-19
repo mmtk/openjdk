@@ -36,6 +36,7 @@
 #include "opto/cfgnode.hpp"
 #include "opto/compile.hpp"
 #include "opto/escape.hpp"
+#include "opto/locknode.hpp"
 #include "opto/phaseX.hpp"
 #include "opto/movenode.hpp"
 #include "opto/rootnode.hpp"
@@ -2095,7 +2096,7 @@ void ConnectionGraph::optimize_ideal_graph(GrowableArray<Node*>& ptr_cmp_worklis
       if (n->is_AbstractLock()) { // Lock and Unlock nodes
         AbstractLockNode* alock = n->as_AbstractLock();
         if (!alock->is_non_esc_obj()) {
-          if (not_global_escape(alock->obj_node())) {
+          if (can_eliminate_lock(alock)) {
             assert(!alock->is_eliminated() || alock->is_coarsened(), "sanity");
             // The lock could be marked eliminated by lock coarsening
             // code during first IGVN before EA. Replace coarsened flag
@@ -2428,6 +2429,20 @@ bool ConnectionGraph::not_global_escape(Node *n) {
   return true;
 }
 
+// Return true if locked object does not escape globally
+// and locked code region (identified by BoxLockNode) is balanced:
+// all compiled code paths have corresponding Lock/Unlock pairs.
+bool ConnectionGraph::can_eliminate_lock(AbstractLockNode* alock) {
+  if (alock->is_balanced() && not_global_escape(alock->obj_node())) {
+    if (EliminateNestedLocks) {
+      // We can mark whole locking region as Local only when only
+      // one object is used for locking.
+      alock->box_node()->as_BoxLock()->set_local();
+    }
+    return true;
+  }
+  return false;
+}
 
 // Helper functions
 
@@ -2785,7 +2800,7 @@ PhiNode *ConnectionGraph::create_split_phi(PhiNode *orig_phi, int alias_idx, Gro
 // Return a new version of Memory Phi "orig_phi" with the inputs having the
 // specified alias index.
 //
-PhiNode *ConnectionGraph::split_memory_phi(PhiNode *orig_phi, int alias_idx, GrowableArray<PhiNode *>  &orig_phi_worklist) {
+PhiNode *ConnectionGraph::split_memory_phi(PhiNode *orig_phi, int alias_idx, GrowableArray<PhiNode *> &orig_phi_worklist, uint rec_depth) {
   assert(alias_idx != Compile::AliasIdxBot, "can't split out bottom memory");
   Compile *C = _compile;
   PhaseGVN* igvn = _igvn;
@@ -2801,7 +2816,7 @@ PhiNode *ConnectionGraph::split_memory_phi(PhiNode *orig_phi, int alias_idx, Gro
   bool finished = false;
   while(!finished) {
     while (idx < phi->req()) {
-      Node *mem = find_inst_mem(phi->in(idx), alias_idx, orig_phi_worklist);
+      Node *mem = find_inst_mem(phi->in(idx), alias_idx, orig_phi_worklist, rec_depth + 1);
       if (mem != nullptr && mem->is_Phi()) {
         PhiNode *newphi = create_split_phi(mem->as_Phi(), alias_idx, orig_phi_worklist, new_phi_created);
         if (new_phi_created) {
@@ -2943,7 +2958,12 @@ void ConnectionGraph::move_inst_mem(Node* n, GrowableArray<PhiNode *>  &orig_phi
 // Search memory chain of "mem" to find a MemNode whose address
 // is the specified alias index.
 //
-Node* ConnectionGraph::find_inst_mem(Node *orig_mem, int alias_idx, GrowableArray<PhiNode *>  &orig_phis) {
+#define FIND_INST_MEM_RECURSION_DEPTH_LIMIT 1000
+Node* ConnectionGraph::find_inst_mem(Node *orig_mem, int alias_idx, GrowableArray<PhiNode *>  &orig_phis, uint rec_depth) {
+  if (rec_depth > FIND_INST_MEM_RECURSION_DEPTH_LIMIT) {
+    _compile->record_failure(_invocation > 0 ? C2Compiler::retry_no_iterative_escape_analysis() : C2Compiler::retry_no_escape_analysis());
+    return nullptr;
+  }
   if (orig_mem == nullptr) {
     return orig_mem;
   }
@@ -3017,7 +3037,7 @@ Node* ConnectionGraph::find_inst_mem(Node *orig_mem, int alias_idx, GrowableArra
       if (result == mmem->base_memory()) {
         // Didn't find instance memory, search through general slice recursively.
         result = mmem->memory_at(C->get_general_index(alias_idx));
-        result = find_inst_mem(result, alias_idx, orig_phis);
+        result = find_inst_mem(result, alias_idx, orig_phis, rec_depth + 1);
         if (C->failing()) {
           return nullptr;
         }
@@ -3085,7 +3105,7 @@ Node* ConnectionGraph::find_inst_mem(Node *orig_mem, int alias_idx, GrowableArra
       orig_phis.append_if_missing(mphi);
     } else if (C->get_alias_index(t) != alias_idx) {
       // Create a new Phi with the specified alias index type.
-      result = split_memory_phi(mphi, alias_idx, orig_phis);
+      result = split_memory_phi(mphi, alias_idx, orig_phis, rec_depth + 1);
     }
   }
   // the result is either MemNode, PhiNode, InitializeNode.
@@ -3513,6 +3533,13 @@ void ConnectionGraph::split_unique_types(GrowableArray<Node *>  &alloc_worklist,
       if (n == nullptr) {
         continue;
       }
+    } else if (n->is_CallLeaf()) {
+      // Runtime calls with narrow memory input (no MergeMem node)
+      // get the memory projection
+      n = n->as_Call()->proj_out_or_null(TypeFunc::Memory);
+      if (n == nullptr) {
+        continue;
+      }
     } else if (n->Opcode() == Op_StrCompressedCopy ||
                n->Opcode() == Op_EncodeISOArray) {
       // get the memory projection
@@ -3555,7 +3582,7 @@ void ConnectionGraph::split_unique_types(GrowableArray<Node *>  &alloc_worklist,
           continue;
         }
         memnode_worklist.append_if_missing(use);
-      } else if (use->is_MemBar()) {
+      } else if (use->is_MemBar() || use->is_CallLeaf()) {
         if (use->in(TypeFunc::Memory) == n) { // Ignore precedent edge
           memnode_worklist.append_if_missing(use);
         }

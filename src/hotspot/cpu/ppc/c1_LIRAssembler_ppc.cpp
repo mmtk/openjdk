@@ -135,9 +135,20 @@ void LIR_Assembler::osr_entry() {
   // copied into place by code emitted in the IR.
 
   Register OSR_buf = osrBufferPointer()->as_register();
-  { assert(frame::interpreter_frame_monitor_size() == BasicObjectLock::size(), "adjust code below");
-    int monitor_offset = BytesPerWord * method()->max_locals() +
-      (2 * BytesPerWord) * (number_of_locks - 1);
+  {
+    assert(frame::interpreter_frame_monitor_size() == BasicObjectLock::size(), "adjust code below");
+
+    const int locals_space = BytesPerWord * method()->max_locals();
+    int monitor_offset = locals_space + (2 * BytesPerWord) * (number_of_locks - 1);
+    bool use_OSR_bias = false;
+
+    if (!Assembler::is_simm16(monitor_offset + BytesPerWord) && number_of_locks > 0) {
+      // Offsets too large for ld instructions. Use bias.
+      __ add_const_optimized(OSR_buf, OSR_buf, locals_space);
+      monitor_offset -= locals_space;
+      use_OSR_bias = true;
+    }
+
     // SharedRuntime::OSR_migration_begin() packs BasicObjectLocks in
     // the OSR buffer using 2 word entries: first the lock and then
     // the oop.
@@ -162,6 +173,11 @@ void LIR_Assembler::osr_entry() {
       __ std(R0, ml.disp(), ml.base());
       __ ld(R0, slot_offset + 1*BytesPerWord, OSR_buf);
       __ std(R0, mo.disp(), mo.base());
+    }
+
+    if (use_OSR_bias) {
+      // Restore.
+      __ sub_const_optimized(OSR_buf, OSR_buf, locals_space);
     }
   }
 }
@@ -215,7 +231,11 @@ int LIR_Assembler::emit_unwind_handler() {
   if (method()->is_synchronized()) {
     monitor_address(0, FrameMap::R4_opr);
     stub = new MonitorExitStub(FrameMap::R4_opr, true, 0);
-    __ unlock_object(R5, R6, R4, *stub->entry());
+    if (LockingMode == LM_MONITOR) {
+      __ b(*stub->entry());
+    } else {
+      __ unlock_object(R5, R6, R4, *stub->entry());
+    }
     __ bind(*stub->continuation());
   }
 
@@ -1695,7 +1715,7 @@ void LIR_Assembler::arith_op(LIR_Code code, LIR_Opr left, LIR_Opr right, LIR_Opr
 }
 
 
-void LIR_Assembler::intrinsic_op(LIR_Code code, LIR_Opr value, LIR_Opr thread, LIR_Opr dest, LIR_Op* op) {
+void LIR_Assembler::intrinsic_op(LIR_Code code, LIR_Opr value, LIR_Opr tmp, LIR_Opr dest, LIR_Op* op) {
   switch (code) {
     case lir_sqrt: {
       __ fsqrt(dest->as_double_reg(), value->as_double_reg());
@@ -1703,6 +1723,14 @@ void LIR_Assembler::intrinsic_op(LIR_Code code, LIR_Opr value, LIR_Opr thread, L
     }
     case lir_abs: {
       __ fabs(dest->as_double_reg(), value->as_double_reg());
+      break;
+    }
+    case lir_f2hf: {
+      __ f2hf(dest.as_register(), value.as_float_reg(), tmp.as_float_reg());
+      break;
+    }
+    case lir_hf2f: {
+      __ hf2f(dest->as_float_reg(), value.as_register());
       break;
     }
     default: {
@@ -2635,6 +2663,13 @@ void LIR_Assembler::emit_compare_and_swap(LIR_OpCompareAndSwap* op) {
     Unimplemented();
   }
 
+  // There might be a volatile load before this Unsafe CAS.
+  if (support_IRIW_for_not_multiple_copy_atomic_cpu) {
+    __ sync();
+  } else {
+    __ lwsync();
+  }
+
   if (is_64bit) {
     __ cmpxchgd(BOOL_RESULT, /*current_value=*/R0, cmp_value, new_value, addr,
                 MacroAssembler::MemBarNone,
@@ -2996,9 +3031,24 @@ void LIR_Assembler::atomic_op(LIR_Code code, LIR_Opr src, LIR_Opr data, LIR_Opr 
   assert(addr->disp() == 0 && addr->index()->is_illegal(), "use leal!");
   const Register Rptr = addr->base()->as_pointer_register(),
                  Rtmp = tmp->as_register();
-  Register Rco = noreg;
-  if (UseCompressedOops && data->is_oop()) {
-    Rco = __ encode_heap_oop(Rtmp, data->as_register());
+  Register Robj = noreg;
+  if (data->is_oop()) {
+    if (UseCompressedOops) {
+      Robj = __ encode_heap_oop(Rtmp, data->as_register());
+    } else {
+      Robj = data->as_register();
+      if (Robj == dest->as_register()) { // May happen with ZGC.
+        __ mr(Rtmp, Robj);
+        Robj = Rtmp;
+      }
+    }
+  }
+
+  // There might be a volatile load before this Unsafe OP.
+  if (support_IRIW_for_not_multiple_copy_atomic_cpu) {
+    __ sync();
+  } else {
+    __ lwsync();
   }
 
   Label Lretry;
@@ -3018,18 +3068,11 @@ void LIR_Assembler::atomic_op(LIR_Code code, LIR_Opr src, LIR_Opr data, LIR_Opr 
   } else if (data->is_oop()) {
     assert(code == lir_xchg, "xadd for oops");
     const Register Rold = dest->as_register();
+    assert_different_registers(Rptr, Rold, Robj);
     if (UseCompressedOops) {
-      assert_different_registers(Rptr, Rold, Rco);
       __ lwarx(Rold, Rptr, MacroAssembler::cmpxchgx_hint_atomic_update());
-      __ stwcx_(Rco, Rptr);
+      __ stwcx_(Robj, Rptr);
     } else {
-      Register Robj = data->as_register();
-      assert_different_registers(Rptr, Rold, Rtmp);
-      assert_different_registers(Rptr, Robj, Rtmp);
-      if (Robj == Rold) { // May happen with ZGC.
-        __ mr(Rtmp, Robj);
-        Robj = Rtmp;
-      }
       __ ldarx(Rold, Rptr, MacroAssembler::cmpxchgx_hint_atomic_update());
       __ stdcx_(Robj, Rptr);
     }
@@ -3056,6 +3099,12 @@ void LIR_Assembler::atomic_op(LIR_Code code, LIR_Opr src, LIR_Opr data, LIR_Opr 
 
   if (UseCompressedOops && data->is_oop()) {
     __ decode_heap_oop(dest->as_register());
+  }
+
+  if (support_IRIW_for_not_multiple_copy_atomic_cpu) {
+    __ isync();
+  } else {
+    __ sync();
   }
 }
 
@@ -3141,7 +3190,7 @@ void LIR_Assembler::emit_profile_type(LIR_OpProfileType* op) {
         // Klass seen before, nothing to do (regardless of unknown bit).
         //beq(CCR1, do_nothing);
 
-        __ andi_(R0, klass, TypeEntries::type_unknown);
+        __ andi_(R0, tmp, TypeEntries::type_unknown);
         // Already unknown. Nothing to do anymore.
         //bne(CCR0, do_nothing);
         __ crorc(CCR0, Assembler::equal, CCR1, Assembler::equal); // cr0 eq = cr1 eq or cr0 ne

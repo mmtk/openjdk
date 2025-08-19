@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2005, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -274,6 +274,7 @@ public interface SignatureMethod extends XMLStructure, AlgorithmMethod {
      * @since 21
      */
     String ED448 = "http://www.w3.org/2021/04/xmldsig-more#eddsa-ed448";
+
 
     /**
      * Returns the algorithm-specific input parameters of this

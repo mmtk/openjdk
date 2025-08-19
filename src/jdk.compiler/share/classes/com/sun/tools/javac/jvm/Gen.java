@@ -1100,29 +1100,38 @@ public class Gen extends JCTree.Visitor {
     }
 
     public void visitBlock(JCBlock tree) {
+        /* this method is heavily invoked, as expected, for deeply nested blocks, if blocks doesn't happen to have
+         * patterns there will be an unnecessary tax on memory consumption every time this method is executed, for this
+         * reason we have created helper methods and here at a higher level we just discriminate depending on the
+         * presence, or not, of patterns in a given block
+         */
         if (tree.patternMatchingCatch != null) {
-            Set<JCMethodInvocation> prevInvocationsWithPatternMatchingCatch = invocationsWithPatternMatchingCatch;
-            ListBuffer<int[]> prevRanges = patternMatchingInvocationRanges;
-            State startState = code.state.dup();
-            try {
-                invocationsWithPatternMatchingCatch = tree.patternMatchingCatch.calls2Handle();
-                patternMatchingInvocationRanges = new ListBuffer<>();
-                doVisitBlock(tree);
-            } finally {
-                Chain skipCatch = code.branch(goto_);
-                JCCatch handler = tree.patternMatchingCatch.handler();
-                code.entryPoint(startState, handler.param.sym.type);
-                genPatternMatchingCatch(handler, env, patternMatchingInvocationRanges.toList());
-                code.resolve(skipCatch);
-                invocationsWithPatternMatchingCatch = prevInvocationsWithPatternMatchingCatch;
-                patternMatchingInvocationRanges = prevRanges;
-            }
+            visitBlockWithPatterns(tree);
         } else {
-            doVisitBlock(tree);
+            internalVisitBlock(tree);
         }
     }
 
-    private void doVisitBlock(JCBlock tree) {
+    private void visitBlockWithPatterns(JCBlock tree) {
+        Set<JCMethodInvocation> prevInvocationsWithPatternMatchingCatch = invocationsWithPatternMatchingCatch;
+        ListBuffer<int[]> prevRanges = patternMatchingInvocationRanges;
+        State startState = code.state.dup();
+        try {
+            invocationsWithPatternMatchingCatch = tree.patternMatchingCatch.calls2Handle();
+            patternMatchingInvocationRanges = new ListBuffer<>();
+            internalVisitBlock(tree);
+        } finally {
+            Chain skipCatch = code.branch(goto_);
+            JCCatch handler = tree.patternMatchingCatch.handler();
+            code.entryPoint(startState, handler.param.sym.type);
+            genPatternMatchingCatch(handler, env, patternMatchingInvocationRanges.toList());
+            code.resolve(skipCatch);
+            invocationsWithPatternMatchingCatch = prevInvocationsWithPatternMatchingCatch;
+            patternMatchingInvocationRanges = prevRanges;
+        }
+    }
+
+    private void internalVisitBlock(JCBlock tree) {
         int limit = code.nextreg;
         Env<GenContext> localEnv = env.dup(tree, new GenContext());
         genStats(tree.stats, localEnv);
@@ -1278,11 +1287,17 @@ public class Gen extends JCTree.Visitor {
     }
     //where:
         private boolean hasTry(JCSwitchExpression tree) {
-            boolean[] hasTry = new boolean[1];
-            new TreeScanner() {
+            class HasTryScanner extends TreeScanner {
+                private boolean hasTry;
+
                 @Override
                 public void visitTry(JCTry tree) {
-                    hasTry[0] = true;
+                    hasTry = true;
+                }
+
+                @Override
+                public void visitSynchronized(JCSynchronized tree) {
+                    hasTry = true;
                 }
 
                 @Override
@@ -1292,8 +1307,12 @@ public class Gen extends JCTree.Visitor {
                 @Override
                 public void visitLambda(JCLambda tree) {
                 }
-            }.scan(tree);
-            return hasTry[0];
+            };
+
+            HasTryScanner hasTryScanner = new HasTryScanner();
+
+            hasTryScanner.scan(tree);
+            return hasTryScanner.hasTry;
         }
 
     private void handleSwitch(JCTree swtch, JCExpression selector, List<JCCase> cases,

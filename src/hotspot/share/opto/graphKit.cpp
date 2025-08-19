@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2001, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -1554,6 +1554,7 @@ Node* GraphKit::make_load(Node* ctl, Node* adr, const Type* t, BasicType bt,
                           bool mismatched,
                           bool unsafe,
                           uint8_t barrier_data) {
+  assert(adr_idx == C->get_alias_index(_gvn.type(adr)->isa_ptr()), "slice of address and input slice don't match");
   assert(adr_idx != Compile::AliasIdxTop, "use other make_load factory" );
   const TypePtr* adr_type = nullptr; // debug-mode-only argument
   debug_only(adr_type = C->get_adr_type(adr_idx));
@@ -1576,6 +1577,7 @@ Node* GraphKit::store_to_memory(Node* ctl, Node* adr, Node *val, BasicType bt,
                                 bool unsafe,
                                 int barrier_data) {
   assert(adr_idx != Compile::AliasIdxTop, "use other store_to_memory factory" );
+  assert(adr_idx == C->get_alias_index(_gvn.type(adr)->isa_ptr()), "slice of address and input slice don't match");
   const TypePtr* adr_type = nullptr;
   debug_only(adr_type = C->get_adr_type(adr_idx));
   Node *mem = memory(adr_idx);
@@ -2702,7 +2704,18 @@ Node* Phase::gen_subtype_check(Node* subklass, Node* superklass, Node** ctrl, No
     //    Foo[] fa = blah(); Foo x = fa[0]; fa[1] = x;
     // Here, the type of 'fa' is often exact, so the store check
     // of fa[1]=x will fold up, without testing the nullness of x.
-    switch (C->static_subtype_check(superk, subk)) {
+    //
+    // Do not skip the static sub type check with StressReflectiveCode during
+    // parsing (i.e. with ExpandSubTypeCheckAtParseTime) because the
+    // associated CheckCastNodePP could already be folded when the type
+    // system can prove it's an impossible type. Therefore, we should also
+    // do the static sub type check here to ensure control is folded as well.
+    // Otherwise, the graph is left in a broken state.
+    // At macro expansion, we would have already folded the SubTypeCheckNode
+    // being expanded here because we always perform the static sub type
+    // check in SubTypeCheckNode::sub() regardless of whether
+    // StressReflectiveCode is set or not.
+    switch (C->static_subtype_check(superk, subk, !ExpandSubTypeCheckAtParseTime)) {
     case Compile::SSC_always_false:
       {
         Node* always_fail = *ctrl;
@@ -3421,7 +3434,10 @@ FastLockNode* GraphKit::shared_lock(Node* obj) {
   assert(dead_locals_are_killed(), "should kill locals before sync. point");
 
   // Box the stack location
-  Node* box = _gvn.transform(new BoxLockNode(next_monitor()));
+  Node* box = new BoxLockNode(next_monitor());
+  // Check for bailout after new BoxLockNode
+  if (failing()) { return nullptr; }
+  box = _gvn.transform(box);
   Node* mem = reset_memory();
 
   FastLockNode * flock = _gvn.transform(new FastLockNode(0, obj, box) )->as_FastLock();
@@ -3728,7 +3744,10 @@ Node* GraphKit::new_instance(Node* klass_node,
 //-------------------------------new_array-------------------------------------
 // helper for both newarray and anewarray
 // The 'length' parameter is (obviously) the length of the array.
-// See comments on new_instance for the meaning of the other arguments.
+// The optional arguments are for specialized use by intrinsics:
+//  - If 'return_size_val', report the non-padded array size (sum of header size
+//    and array body) to the caller.
+//  - deoptimize_on_exception controls how Java exceptions are handled (rethrow vs deoptimize)
 Node* GraphKit::new_array(Node* klass_node,     // array klass (maybe variable)
                           Node* length,         // number of array elements
                           int   nargs,          // number of arguments to push back for uncommon trap
@@ -3779,25 +3798,21 @@ Node* GraphKit::new_array(Node* klass_node,     // array klass (maybe variable)
   // The rounding mask is strength-reduced, if possible.
   int round_mask = MinObjAlignmentInBytes - 1;
   Node* header_size = nullptr;
-  int   header_size_min  = arrayOopDesc::base_offset_in_bytes(T_BYTE);
   // (T_BYTE has the weakest alignment and size restrictions...)
   if (layout_is_con) {
     int       hsize  = Klass::layout_helper_header_size(layout_con);
     int       eshift = Klass::layout_helper_log2_element_size(layout_con);
-    BasicType etype  = Klass::layout_helper_element_type(layout_con);
     if ((round_mask & ~right_n_bits(eshift)) == 0)
       round_mask = 0;  // strength-reduce it if it goes away completely
     assert((hsize & right_n_bits(eshift)) == 0, "hsize is pre-rounded");
+    int header_size_min = arrayOopDesc::base_offset_in_bytes(T_BYTE);
     assert(header_size_min <= hsize, "generic minimum is smallest");
-    header_size_min = hsize;
-    header_size = intcon(hsize + round_mask);
+    header_size = intcon(hsize);
   } else {
     Node* hss   = intcon(Klass::_lh_header_size_shift);
     Node* hsm   = intcon(Klass::_lh_header_size_mask);
-    Node* hsize = _gvn.transform( new URShiftINode(layout_val, hss) );
-    hsize       = _gvn.transform( new AndINode(hsize, hsm) );
-    Node* mask  = intcon(round_mask);
-    header_size = _gvn.transform( new AddINode(hsize, mask) );
+    header_size = _gvn.transform(new URShiftINode(layout_val, hss));
+    header_size = _gvn.transform(new AndINode(header_size, hsm));
   }
 
   Node* elem_shift = nullptr;
@@ -3849,24 +3864,29 @@ Node* GraphKit::new_array(Node* klass_node,     // array klass (maybe variable)
   }
 #endif
 
-  // Combine header size (plus rounding) and body size.  Then round down.
-  // This computation cannot overflow, because it is used only in two
-  // places, one where the length is sharply limited, and the other
-  // after a successful allocation.
+  // Combine header size and body size for the array copy part, then align (if
+  // necessary) for the allocation part. This computation cannot overflow,
+  // because it is used only in two places, one where the length is sharply
+  // limited, and the other after a successful allocation.
   Node* abody = lengthx;
-  if (elem_shift != nullptr)
-    abody     = _gvn.transform( new LShiftXNode(lengthx, elem_shift) );
-  Node* size  = _gvn.transform( new AddXNode(headerx, abody) );
-  if (round_mask != 0) {
-    Node* mask = MakeConX(~round_mask);
-    size       = _gvn.transform( new AndXNode(size, mask) );
+  if (elem_shift != nullptr) {
+    abody = _gvn.transform(new LShiftXNode(lengthx, elem_shift));
   }
-  // else if round_mask == 0, the size computation is self-rounding
+  Node* non_rounded_size = _gvn.transform(new AddXNode(headerx, abody));
 
   if (return_size_val != nullptr) {
     // This is the size
-    (*return_size_val) = size;
+    (*return_size_val) = non_rounded_size;
   }
+
+  Node* size = non_rounded_size;
+  if (round_mask != 0) {
+    Node* mask1 = MakeConX(round_mask);
+    size = _gvn.transform(new AddXNode(size, mask1));
+    Node* mask2 = MakeConX(~round_mask);
+    size = _gvn.transform(new AndXNode(size, mask2));
+  }
+  // else if round_mask == 0, the size computation is self-rounding
 
   // Now generate allocation code
 
@@ -4202,4 +4222,15 @@ Node* GraphKit::make_constant_from_field(ciField* field, Node* obj) {
     return makecon(con_type);
   }
   return nullptr;
+}
+
+Node* GraphKit::maybe_narrow_object_type(Node* obj, ciKlass* type) {
+  const TypeOopPtr* obj_type = obj->bottom_type()->isa_oopptr();
+  const TypeOopPtr* sig_type = TypeOopPtr::make_from_klass(type);
+  if (obj_type != nullptr && sig_type->is_loaded() && !obj_type->higher_equal(sig_type)) {
+    const Type* narrow_obj_type = obj_type->filter_speculative(sig_type); // keep speculative part
+    Node* casted_obj = gvn().transform(new CheckCastPPNode(control(), obj, narrow_obj_type));
+    return casted_obj;
+  }
+  return obj;
 }

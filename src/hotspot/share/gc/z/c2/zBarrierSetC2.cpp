@@ -42,6 +42,7 @@
 #include "opto/rootnode.hpp"
 #include "opto/runtime.hpp"
 #include "opto/type.hpp"
+#include "utilities/debug.hpp"
 #include "utilities/growableArray.hpp"
 #include "utilities/macros.hpp"
 
@@ -226,6 +227,7 @@ Label* ZBarrierStubC2::continuation() {
 }
 
 ZLoadBarrierStubC2* ZLoadBarrierStubC2::create(const MachNode* node, Address ref_addr, Register ref) {
+  AARCH64_ONLY(fatal("Should use ZLoadBarrierStubC2Aarch64::create"));
   ZLoadBarrierStubC2* const stub = new (Compile::current()->comp_arena()) ZLoadBarrierStubC2(node, ref_addr, ref);
   register_stub(stub);
 
@@ -275,6 +277,7 @@ void ZLoadBarrierStubC2::emit_code(MacroAssembler& masm) {
 }
 
 ZStoreBarrierStubC2* ZStoreBarrierStubC2::create(const MachNode* node, Address ref_addr, Register new_zaddress, Register new_zpointer, bool is_native, bool is_atomic) {
+  AARCH64_ONLY(fatal("Should use ZStoreBarrierStubC2Aarch64::create"));
   ZStoreBarrierStubC2* const stub = new (Compile::current()->comp_arena()) ZStoreBarrierStubC2(node, ref_addr, new_zaddress, new_zpointer, is_native, is_atomic);
   register_stub(stub);
 
@@ -615,7 +618,9 @@ static const Node* get_base_and_offset(const MachNode* mach, intptr_t& offset) {
     // The memory address is computed by 'base' and fed to 'mach' via an
     // indirect memory operand (indicated by offset == 0). The ultimate base and
     // offset can be fetched directly from the inputs and Ideal type of 'base'.
-    offset = base->bottom_type()->isa_oopptr()->offset();
+    const TypeOopPtr* oopptr = base->bottom_type()->isa_oopptr();
+    if (oopptr == nullptr) return nullptr;
+    offset = oopptr->offset();
     // Even if 'base' is not an Ideal AddP node anymore, Matcher::ReduceInst()
     // guarantees that the base address is still available at the same slot.
     base = base->in(AddPNode::Base);

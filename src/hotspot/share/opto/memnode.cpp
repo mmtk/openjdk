@@ -593,8 +593,13 @@ Node* LoadNode::find_previous_arraycopy(PhaseValues* phase, Node* ld_alloc, Node
         Node* dest = ac->in(ArrayCopyNode::Dest);
 
         if (dest == ld_base) {
-          const TypeX *ld_offs_t = phase->type(ld_offs)->isa_intptr_t();
-          if (ac->modifies(ld_offs_t->_lo, ld_offs_t->_hi, phase, can_see_stored_value)) {
+          const TypeX* ld_offs_t = phase->type(ld_offs)->isa_intptr_t();
+          assert(!ld_offs_t->empty(), "dead reference should be checked already");
+          // Take into account vector or unsafe access size
+          jlong ld_size_in_bytes = (jlong)memory_size();
+          jlong offset_hi = ld_offs_t->_hi + ld_size_in_bytes - 1;
+          offset_hi = MIN2(offset_hi, (jlong)(TypeX::MAX->_hi)); // Take care for overflow in 32-bit VM
+          if (ac->modifies(ld_offs_t->_lo, (intptr_t)offset_hi, phase, can_see_stored_value)) {
             return ac;
           }
           if (!can_see_stored_value) {
@@ -840,8 +845,12 @@ bool LoadNode::can_remove_control() const {
   return !has_pinned_control_dependency();
 }
 uint LoadNode::size_of() const { return sizeof(*this); }
-bool LoadNode::cmp( const Node &n ) const
-{ return !Type::cmp( _type, ((LoadNode&)n)._type ); }
+bool LoadNode::cmp(const Node &n) const {
+  LoadNode& load = (LoadNode &)n;
+  return !Type::cmp(_type, load._type) &&
+         _control_dependency == load._control_dependency &&
+         _mo == load._mo;
+}
 const Type *LoadNode::bottom_type() const { return _type; }
 uint LoadNode::ideal_reg() const {
   return _type->ideal_reg();
@@ -978,6 +987,14 @@ static bool skip_through_membars(Compile::AliasType* atp, const TypeInstPtr* tp,
   return false;
 }
 
+LoadNode* LoadNode::pin_array_access_node() const {
+  const TypePtr* adr_type = this->adr_type();
+  if (adr_type != nullptr && adr_type->isa_aryptr()) {
+    return clone_pinned();
+  }
+  return nullptr;
+}
+
 // Is the value loaded previously stored by an arraycopy? If so return
 // a load node that reads from the source array so we may be able to
 // optimize out the ArrayCopy node later.
@@ -997,7 +1014,8 @@ Node* LoadNode::can_see_arraycopy_value(Node* st, PhaseGVN* phase) const {
       return nullptr;
     }
 
-    LoadNode* ld = clone()->as_Load();
+    // load depends on the tests that validate the arraycopy
+    LoadNode* ld = clone_pinned();
     Node* addp = in(MemNode::Address)->clone();
     if (ac->as_ArrayCopy()->is_clonebasic()) {
       assert(ld_alloc != nullptr, "need an alloc");
@@ -1039,8 +1057,6 @@ Node* LoadNode::can_see_arraycopy_value(Node* st, PhaseGVN* phase) const {
     ld->set_req(MemNode::Address, addp);
     ld->set_req(0, ctl);
     ld->set_req(MemNode::Memory, mem);
-    // load depends on the tests that validate the arraycopy
-    ld->_control_dependency = UnknownControl;
     return ld;
   }
   return nullptr;
@@ -2389,6 +2405,12 @@ const Type* LoadNode::klass_value_common(PhaseGVN* phase) const {
     }
   }
 
+  if (tkls != nullptr && !UseSecondarySupersCache
+      && tkls->offset() == in_bytes(Klass::secondary_super_cache_offset()))  {
+    // Treat Klass::_secondary_super_cache as a constant when the cache is disabled.
+    return TypePtr::NULL_PTR;
+  }
+
   // Bailout case
   return LoadNode::Value(phase);
 }
@@ -2458,6 +2480,12 @@ Node* LoadNode::klass_identity_common(PhaseGVN* phase) {
   }
 
   return this;
+}
+
+LoadNode* LoadNode::clone_pinned() const {
+  LoadNode* ld = clone()->as_Load();
+  ld->_control_dependency = UnknownControl;
+  return ld;
 }
 
 
@@ -2736,7 +2764,10 @@ Node* StoreNode::Identity(PhaseGVN* phase) {
       val->in(MemNode::Address)->eqv_uncast(adr) &&
       val->in(MemNode::Memory )->eqv_uncast(mem) &&
       val->as_Load()->store_Opcode() == Opcode()) {
-    result = mem;
+    // Ensure vector type is the same
+    if (!is_StoreVector() || (mem->is_LoadVector() && as_StoreVector()->vect_type() == mem->as_LoadVector()->vect_type())) {
+      result = mem;
+    }
   }
 
   // Two stores in a row of the same value?
@@ -2745,7 +2776,24 @@ Node* StoreNode::Identity(PhaseGVN* phase) {
       mem->in(MemNode::Address)->eqv_uncast(adr) &&
       mem->in(MemNode::ValueIn)->eqv_uncast(val) &&
       mem->Opcode() == Opcode()) {
-    result = mem;
+    if (!is_StoreVector()) {
+      result = mem;
+    } else {
+      const StoreVectorNode* store_vector = as_StoreVector();
+      const StoreVectorNode* mem_vector = mem->as_StoreVector();
+      const Node* store_indices = store_vector->indices();
+      const Node* mem_indices = mem_vector->indices();
+      const Node* store_mask = store_vector->mask();
+      const Node* mem_mask = mem_vector->mask();
+      // Ensure types, indices, and masks match
+      if (store_vector->vect_type() == mem_vector->vect_type() &&
+          ((store_indices == nullptr) == (mem_indices == nullptr) &&
+           (store_indices == nullptr || store_indices->eqv_uncast(mem_indices))) &&
+          ((store_mask == nullptr) == (mem_mask == nullptr) &&
+           (store_mask == nullptr || store_mask->eqv_uncast(mem_mask)))) {
+        result = mem;
+      }
+    }
   }
 
   // Store of zero anywhere into a freshly-allocated object?
@@ -3331,6 +3379,7 @@ Node *MemBarNode::Ideal(PhaseGVN *phase, bool can_reshape) {
           my_mem = load_node;
         } else {
           assert(my_mem->unique_out() == this, "sanity");
+          assert(!trailing_load_store(), "load store node can't be eliminated");
           del_req(Precedent);
           phase->is_IterGVN()->_worklist.push(my_mem); // remove dead node later
           my_mem = nullptr;

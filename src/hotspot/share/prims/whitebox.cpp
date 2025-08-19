@@ -771,6 +771,7 @@ WB_END
 WB_ENTRY(jboolean, WB_IsFrameDeoptimized(JNIEnv* env, jobject o, jint depth))
   bool result = false;
   if (thread->has_last_Java_frame()) {
+    ResourceMark rm(THREAD);
     RegisterMap reg_map(thread,
                         RegisterMap::UpdateMap::include,
                         RegisterMap::ProcessFrames::include,
@@ -1047,6 +1048,22 @@ bool WhiteBox::validate_cgroup(const char* proc_cgroups,
                                                     proc_self_mountinfo, cg_flags);
 }
 #endif
+
+bool WhiteBox::is_asan_enabled() {
+#ifdef ADDRESS_SANITIZER
+  return true;
+#else
+  return false;
+#endif
+}
+
+bool WhiteBox::is_ubsan_enabled() {
+#ifdef UNDEFINED_BEHAVIOR_SANITIZER
+  return true;
+#else
+  return false;
+#endif
+}
 
 bool WhiteBox::compile_method(Method* method, int comp_level, int bci, JavaThread* THREAD) {
   // Screen for unavailable/bad comp level or null method
@@ -1831,9 +1848,17 @@ WB_ENTRY(jboolean, WB_IsMonitorInflated(JNIEnv* env, jobject wb, jobject obj))
   return (jboolean) obj_oop->mark().has_monitor();
 WB_END
 
+WB_ENTRY(jboolean, WB_IsAsanEnabled(JNIEnv* env))
+  return (jboolean) WhiteBox::is_asan_enabled();
+WB_END
+
+WB_ENTRY(jboolean, WB_IsUbsanEnabled(JNIEnv* env))
+  return (jboolean) WhiteBox::is_ubsan_enabled();
+WB_END
+
 WB_ENTRY(jboolean, WB_DeflateIdleMonitors(JNIEnv* env, jobject wb))
   log_info(monitorinflation)("WhiteBox initiated DeflateIdleMonitors");
-  return ObjectSynchronizer::request_deflate_idle_monitors();
+  return ObjectSynchronizer::request_deflate_idle_monitors_from_wb();
 WB_END
 
 WB_ENTRY(void, WB_ForceSafepoint(JNIEnv* env, jobject wb))
@@ -1863,6 +1888,12 @@ WB_ENTRY(jint, WB_GetConstantPoolCacheLength(JNIEnv* env, jobject wb, jclass kla
       return -1;
   }
   return cp->cache()->length();
+WB_END
+
+WB_ENTRY(jobjectArray, WB_GetResolvedReferences(JNIEnv* env, jobject wb, jclass klass))
+  InstanceKlass* ik = InstanceKlass::cast(java_lang_Class::as_Klass(JNIHandles::resolve(klass)));
+  objArrayOop resolved_refs= ik->constants()->resolved_references();
+  return (jobjectArray)JNIHandles::make_local(THREAD, resolved_refs);
 WB_END
 
 WB_ENTRY(jint, WB_ConstantPoolRemapInstructionOperandFromCache(JNIEnv* env, jobject wb, jclass klass, jint index))
@@ -2411,6 +2442,13 @@ WB_ENTRY(jint, WB_ValidateCgroup(JNIEnv* env,
   return ret;
 WB_END
 
+// Available cpus of the host machine, Linux only.
+// Used in container testing.
+WB_ENTRY(jint, WB_HostCPUs(JNIEnv* env, jobject o))
+  LINUX_ONLY(return os::Linux::active_processor_count();)
+  return -1; // Not used/implemented on other platforms
+WB_END
+
 WB_ENTRY(void, WB_PrintOsInfo(JNIEnv* env, jobject o))
   os::print_os_info(tty);
 WB_END
@@ -2548,6 +2586,18 @@ WB_ENTRY(jboolean, WB_SetVirtualThreadsNotifyJvmtiMode(JNIEnv* env, jobject wb, 
   }
 #endif
   return result;
+WB_END
+
+WB_ENTRY(void, WB_PreTouchMemory(JNIEnv* env, jobject wb, jlong addr, jlong size))
+  void* const from = (void*)addr;
+  void* const to = (void*)(addr + size);
+  if (from > to) {
+    os::pretouch_memory(from, to, os::vm_page_size());
+  }
+WB_END
+
+WB_ENTRY(void, WB_CleanMetaspaces(JNIEnv* env, jobject target))
+  ClassLoaderDataGraph::safepoint_and_clean_metaspaces();
 WB_END
 
 #define CC (char*)
@@ -2732,11 +2782,14 @@ static JNINativeMethod methods[] = {
                                                       (void*)&WB_AddModuleExportsToAll },
   {CC"deflateIdleMonitors", CC"()Z",                  (void*)&WB_DeflateIdleMonitors },
   {CC"isMonitorInflated0", CC"(Ljava/lang/Object;)Z", (void*)&WB_IsMonitorInflated  },
+  {CC"isAsanEnabled", CC"()Z",                        (void*)&WB_IsAsanEnabled },
+  {CC"isUbsanEnabled", CC"()Z",                       (void*)&WB_IsUbsanEnabled },
   {CC"forceSafepoint",     CC"()V",                   (void*)&WB_ForceSafepoint     },
   {CC"forceClassLoaderStatsSafepoint", CC"()V",       (void*)&WB_ForceClassLoaderStatsSafepoint },
   {CC"getConstantPool0",   CC"(Ljava/lang/Class;)J",  (void*)&WB_GetConstantPool    },
   {CC"getConstantPoolCacheIndexTag0", CC"()I",  (void*)&WB_GetConstantPoolCacheIndexTag},
   {CC"getConstantPoolCacheLength0", CC"(Ljava/lang/Class;)I",  (void*)&WB_GetConstantPoolCacheLength},
+  {CC"getResolvedReferences0", CC"(Ljava/lang/Class;)[Ljava/lang/Object;", (void*)&WB_GetResolvedReferences},
   {CC"remapInstructionOperandFromCPCache0",
       CC"(Ljava/lang/Class;I)I",                      (void*)&WB_ConstantPoolRemapInstructionOperandFromCache},
   {CC"encodeConstantPoolIndyIndex0",
@@ -2804,6 +2857,7 @@ static JNINativeMethod methods[] = {
                                                       (void*)&WB_ValidateCgroup },
   {CC"hostPhysicalMemory",        CC"()J",            (void*)&WB_HostPhysicalMemory },
   {CC"hostPhysicalSwap",          CC"()J",            (void*)&WB_HostPhysicalSwap },
+  {CC"hostCPUs",                  CC"()I",            (void*)&WB_HostCPUs },
   {CC"printOsInfo",               CC"()V",            (void*)&WB_PrintOsInfo },
   {CC"disableElfSectionCache",    CC"()V",            (void*)&WB_DisableElfSectionCache },
   {CC"resolvedMethodItemsCount",  CC"()J",            (void*)&WB_ResolvedMethodItemsCount },
@@ -2829,6 +2883,8 @@ static JNINativeMethod methods[] = {
   {CC"lockCritical",    CC"()V",                      (void*)&WB_LockCritical},
   {CC"unlockCritical",  CC"()V",                      (void*)&WB_UnlockCritical},
   {CC"setVirtualThreadsNotifyJvmtiMode", CC"(Z)Z",    (void*)&WB_SetVirtualThreadsNotifyJvmtiMode},
+  {CC"preTouchMemory",  CC"(JJ)V",                    (void*)&WB_PreTouchMemory},
+  {CC"cleanMetaspaces", CC"()V",                      (void*)&WB_CleanMetaspaces},
 };
 
 

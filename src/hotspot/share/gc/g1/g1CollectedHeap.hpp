@@ -453,7 +453,7 @@ private:
   // Second-level mutator allocation attempt: take the Heap_lock and
   // retry the allocation attempt, potentially scheduling a GC
   // pause. This should only be used for non-humongous allocations.
-  HeapWord* attempt_allocation_slow(size_t word_size);
+  HeapWord* attempt_allocation_slow(uint node_index, size_t word_size);
 
   // Takes the Heap_lock and attempts a humongous allocation. It can
   // potentially schedule a GC pause.
@@ -753,7 +753,7 @@ private:
   // false if unable to do the collection due to the GC locker being
   // active, true otherwise.
   // precondition: at safepoint on VM thread
-  // precondition: !is_gc_active()
+  // precondition: !is_stw_gc_active()
   bool do_collection_pause_at_safepoint();
 
   // Helper for do_collection_pause_at_safepoint, containing the guts
@@ -1264,6 +1264,10 @@ public:
 
   // Performs cleaning of data structures after class unloading.
   void complete_cleaning(bool class_unloading_occurred);
+
+  void unload_classes_and_code(const char* description, BoolObjectClosure* cl, GCTimer* timer);
+
+  void bulk_unregister_nmethods();
 
   // Verification
 

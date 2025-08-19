@@ -2062,7 +2062,10 @@ int HandlerImpl::emit_exception_handler(CodeBuffer &cbuf) {
   C2_MacroAssembler _masm(&cbuf);
 
   address base = __ start_a_stub(size_exception_handler());
-  if (base == NULL) return 0; // CodeBuffer::expand failed
+  if (base == nullptr) {
+    ciEnv::current()->record_failure("CodeCache is full");
+    return 0;  // CodeBuffer::expand failed
+  }
 
   int offset = __ offset();
   __ b64_patchable((address)OptoRuntime::exception_blob()->content_begin(),
@@ -2079,7 +2082,10 @@ int HandlerImpl::emit_deopt_handler(CodeBuffer& cbuf) {
   C2_MacroAssembler _masm(&cbuf);
 
   address base = __ start_a_stub(size_deopt_handler());
-  if (base == NULL) return 0; // CodeBuffer::expand failed
+  if (base == nullptr) {
+    ciEnv::current()->record_failure("CodeCache is full");
+    return 0;  // CodeBuffer::expand failed
+  }
 
   int offset = __ offset();
   __ bl64_patchable((address)SharedRuntime::deopt_blob()->unpack(),
@@ -2119,6 +2125,9 @@ const bool Matcher::match_rule_supported(int opcode) {
     case Op_PopCountI:
     case Op_PopCountL:
       return (UsePopCountInstruction && VM_Version::has_popcntw());
+    case Op_ConvF2HF:
+    case Op_ConvHF2F:
+      return VM_Version::supports_float16();
 
     case Op_AddVB:
     case Op_AddVS:
@@ -2798,15 +2807,16 @@ encode %{
     intptr_t val = $src$$constant;
     relocInfo::relocType constant_reloc = $src->constant_reloc();  // src
     address const_toc_addr;
+    RelocationHolder r; // Initializes type to none.
     if (constant_reloc == relocInfo::oop_type) {
       // Create an oop constant and a corresponding relocation.
-      AddressLiteral a = __ allocate_oop_address((jobject)val);
+      AddressLiteral a = __ constant_oop_address((jobject)val);
       const_toc_addr = __ address_constant((address)a.value(), RelocationHolder::none);
-      __ relocate(a.rspec());
+      r = a.rspec();
     } else if (constant_reloc == relocInfo::metadata_type) {
+      // Notify OOP recorder (don't need the relocation)
       AddressLiteral a = __ constant_metadata_address((Metadata *)val);
       const_toc_addr = __ address_constant((address)a.value(), RelocationHolder::none);
-      __ relocate(a.rspec());
     } else {
       // Create a non-oop constant, no relocation needed.
       const_toc_addr = __ long_constant((jlong)$src$$constant);
@@ -2816,6 +2826,7 @@ encode %{
       ciEnv::current()->record_out_of_memory_failure();
       return;
     }
+    __ relocate(r); // If set above.
     // Get the constant's TOC offset.
     toc_offset = __ offset_to_method_toc(const_toc_addr);
 
@@ -2829,15 +2840,16 @@ encode %{
       intptr_t val = $src$$constant;
       relocInfo::relocType constant_reloc = $src->constant_reloc();  // src
       address const_toc_addr;
+      RelocationHolder r; // Initializes type to none.
       if (constant_reloc == relocInfo::oop_type) {
         // Create an oop constant and a corresponding relocation.
-        AddressLiteral a = __ allocate_oop_address((jobject)val);
+        AddressLiteral a = __ constant_oop_address((jobject)val);
         const_toc_addr = __ address_constant((address)a.value(), RelocationHolder::none);
-        __ relocate(a.rspec());
+        r = a.rspec();
       } else if (constant_reloc == relocInfo::metadata_type) {
+        // Notify OOP recorder (don't need the relocation)
         AddressLiteral a = __ constant_metadata_address((Metadata *)val);
         const_toc_addr = __ address_constant((address)a.value(), RelocationHolder::none);
-        __ relocate(a.rspec());
       } else {  // non-oop pointers, e.g. card mark base, heap top
         // Create a non-oop constant, no relocation needed.
         const_toc_addr = __ long_constant((jlong)$src$$constant);
@@ -2847,6 +2859,7 @@ encode %{
         ciEnv::current()->record_out_of_memory_failure();
         return;
       }
+      __ relocate(r); // If set above.
       // Get the constant's TOC offset.
       const int toc_offset = __ offset_to_method_toc(const_toc_addr);
       // Store the toc offset of the constant.
@@ -3520,9 +3533,11 @@ encode %{
     call->_oop_map           = _oop_map;
     call->_jvms              = _jvms;
     call->_jvmadj            = _jvmadj;
+    call->_has_ea_local_in_scope = _has_ea_local_in_scope;
     call->_in_rms            = _in_rms;
     call->_nesting           = _nesting;
     call->_override_symbolic_info = _override_symbolic_info;
+    call->_arg_escape        = _arg_escape;
 
     // New call needs all inputs of old call.
     // Req...
@@ -11329,6 +11344,34 @@ instruct convF2D_reg(regD dst, regF src) %{
   // variable size, 0 or 4
   ins_encode %{
     __ fmr_if_needed($dst$$FloatRegister, $src$$FloatRegister);
+  %}
+  ins_pipe(pipe_class_default);
+%}
+
+instruct convF2HF_reg_reg(iRegIdst dst, regF src, regF tmp) %{
+  match(Set dst (ConvF2HF src));
+  effect(TEMP tmp);
+  ins_cost(3 * DEFAULT_COST);
+  size(12);
+  format %{ "xscvdphp $tmp, $src\t# convert to half precision\n\t"
+            "mffprd $dst, $tmp\t# move result from $tmp to $dst\n\t"
+            "extsh $dst, $dst\t# make it a proper short"
+  %}
+  ins_encode %{
+    __ f2hf($dst$$Register, $src$$FloatRegister, $tmp$$FloatRegister);
+  %}
+  ins_pipe(pipe_class_default);
+%}
+
+instruct convHF2F_reg_reg(regF dst, iRegIsrc src) %{
+  match(Set dst (ConvHF2F src));
+  ins_cost(2 * DEFAULT_COST);
+  size(8);
+  format %{ "mtfprd $dst, $src\t# move source from $src to $dst\n\t"
+            "xscvhpdp $dst, $dst\t# convert from half precision"
+  %}
+  ins_encode %{
+    __ hf2f($dst$$FloatRegister, $src$$Register);
   %}
   ins_pipe(pipe_class_default);
 %}

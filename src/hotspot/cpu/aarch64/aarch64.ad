@@ -1,6 +1,6 @@
 //
 // Copyright (c) 2003, 2023, Oracle and/or its affiliates. All rights reserved.
-// Copyright (c) 2014, 2021, Red Hat, Inc. All rights reserved.
+// Copyright (c) 2014, 2024, Red Hat, Inc. All rights reserved.
 // DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
 //
 // This code is free software; you can redistribute it and/or modify it
@@ -694,6 +694,11 @@ reg_class no_special_ptr_reg %{
   return _NO_SPECIAL_PTR_REG_mask;
 %}
 
+// Class for all non_special pointer registers (excluding rfp)
+reg_class no_special_no_rfp_ptr_reg %{
+  return _NO_SPECIAL_NO_RFP_PTR_REG_mask;
+%}
+
 // Class for all float registers
 reg_class float_reg(
     V0,
@@ -1125,6 +1130,7 @@ extern RegMask _PTR_REG_mask;
 extern RegMask _NO_SPECIAL_REG32_mask;
 extern RegMask _NO_SPECIAL_REG_mask;
 extern RegMask _NO_SPECIAL_PTR_REG_mask;
+extern RegMask _NO_SPECIAL_NO_RFP_PTR_REG_mask;
 
 class CallStubImpl {
 
@@ -1213,6 +1219,7 @@ source %{
   RegMask _NO_SPECIAL_REG32_mask;
   RegMask _NO_SPECIAL_REG_mask;
   RegMask _NO_SPECIAL_PTR_REG_mask;
+  RegMask _NO_SPECIAL_NO_RFP_PTR_REG_mask;
 
   void reg_mask_init() {
     // We derive below RegMask(s) from the ones which are auto-generated from
@@ -1249,6 +1256,9 @@ source %{
       _NO_SPECIAL_REG_mask.Remove(OptoReg::as_OptoReg(r29->as_VMReg()));
       _NO_SPECIAL_PTR_REG_mask.Remove(OptoReg::as_OptoReg(r29->as_VMReg()));
     }
+
+    _NO_SPECIAL_NO_RFP_PTR_REG_mask = _NO_SPECIAL_PTR_REG_mask;
+    _NO_SPECIAL_NO_RFP_PTR_REG_mask.Remove(OptoReg::as_OptoReg(r29->as_VMReg()));
   }
 
   // Optimizaton of volatile gets and puts
@@ -1638,8 +1648,8 @@ int MachCallRuntimeNode::ret_addr_offset() {
   // for real runtime callouts it will be six instructions
   // see aarch64_enc_java_to_runtime
   //   adr(rscratch2, retaddr)
+  //   str(rscratch2, Address(rthread, JavaThread::last_Java_pc_offset()));
   //   lea(rscratch1, RuntimeAddress(addr)
-  //   stp(zr, rscratch2, Address(__ pre(sp, -2 * wordSize)))
   //   blr(rscratch1)
   CodeBlob *cb = CodeCache::find_blob(_entry_point);
   if (cb) {
@@ -1721,8 +1731,8 @@ void MachPrologNode::format(PhaseRegAlloc *ra_, outputStream *st) const {
     st->print("# stack bang size=%d\n\t", framesize);
 
   if (VM_Version::use_rop_protection()) {
-    st->print("ldr zr, [lr]\n\t");
-    st->print("pacia  lr, rfp\n\t");
+    st->print("ldr  zr, [lr]\n\t");
+    st->print("paciaz\n\t");
   }
   if (framesize < ((1 << 9) + 2 * wordSize)) {
     st->print("sub  sp, sp, #%d\n\t", framesize);
@@ -1851,8 +1861,8 @@ void MachEpilogNode::format(PhaseRegAlloc *ra_, outputStream *st) const {
     st->print("ldp  lr, rfp, [sp],#%d\n\t", (2 * wordSize));
   }
   if (VM_Version::use_rop_protection()) {
-    st->print("autia lr, rfp\n\t");
-    st->print("ldr zr, [lr]\n\t");
+    st->print("autiaz\n\t");
+    st->print("ldr  zr, [lr]\n\t");
   }
 
   if (do_polling() && C->is_method_compilation()) {
@@ -2729,10 +2739,6 @@ typedef void (MacroAssembler::* mem_vector_insn)(FloatRegister Rt,
   {
     Address addr = mem2address(opcode, base, index, scale, disp);
     if (addr.getMode() == Address::base_plus_offset) {
-      /* If we get an out-of-range offset it is a bug in the compiler,
-         so we assert here. */
-      assert(Address::offset_ok_for_immed(addr.offset(), exact_log2(size_in_memory)),
-             "c2 compiler bug");
       /* Fix up any out-of-range offsets. */
       assert_different_registers(rscratch1, base);
       assert_different_registers(rscratch1, reg);
@@ -3764,14 +3770,13 @@ encode %{
       __ post_call_nop();
     } else {
       Label retaddr;
+      // Make the anchor frame walkable
       __ adr(rscratch2, retaddr);
+      __ str(rscratch2, Address(rthread, JavaThread::last_Java_pc_offset()));
       __ lea(rscratch1, RuntimeAddress(entry));
-      // Leave a breadcrumb for JavaFrameAnchor::capture_last_Java_pc()
-      __ stp(zr, rscratch2, Address(__ pre(sp, -2 * wordSize)));
       __ blr(rscratch1);
       __ bind(retaddr);
       __ post_call_nop();
-      __ add(sp, sp, 2 * wordSize);
     }
     if (Compile::current()->max_vector_size() > 0) {
       __ reinitialize_ptrue();
@@ -3807,202 +3812,6 @@ encode %{
     // callee expects it in r3
     __ mov(r3, lr);
     __ br(target_reg);
-  %}
-
-  enc_class aarch64_enc_fast_lock(iRegP object, iRegP box, iRegP tmp, iRegP tmp2) %{
-    C2_MacroAssembler _masm(&cbuf);
-    Register oop = as_Register($object$$reg);
-    Register box = as_Register($box$$reg);
-    Register disp_hdr = as_Register($tmp$$reg);
-    Register tmp = as_Register($tmp2$$reg);
-    Label cont;
-    Label object_has_monitor;
-    Label count, no_count;
-
-    assert_different_registers(oop, box, tmp, disp_hdr);
-
-    // Load markWord from object into displaced_header.
-    __ ldr(disp_hdr, Address(oop, oopDesc::mark_offset_in_bytes()));
-
-    if (DiagnoseSyncOnValueBasedClasses != 0) {
-      __ load_klass(tmp, oop);
-      __ ldrw(tmp, Address(tmp, Klass::access_flags_offset()));
-      __ tstw(tmp, JVM_ACC_IS_VALUE_BASED_CLASS);
-      __ br(Assembler::NE, cont);
-    }
-
-    // Check for existing monitor
-    __ tbnz(disp_hdr, exact_log2(markWord::monitor_value), object_has_monitor);
-
-    if (LockingMode == LM_MONITOR) {
-      __ tst(oop, oop); // Set NE to indicate 'failure' -> take slow-path. We know that oop != 0.
-      __ b(cont);
-    } else if (LockingMode == LM_LEGACY) {
-      // Set tmp to be (markWord of object | UNLOCK_VALUE).
-      __ orr(tmp, disp_hdr, markWord::unlocked_value);
-
-      // Initialize the box. (Must happen before we update the object mark!)
-      __ str(tmp, Address(box, BasicLock::displaced_header_offset_in_bytes()));
-
-      // Compare object markWord with an unlocked value (tmp) and if
-      // equal exchange the stack address of our box with object markWord.
-      // On failure disp_hdr contains the possibly locked markWord.
-      __ cmpxchg(oop, tmp, box, Assembler::xword, /*acquire*/ true,
-                 /*release*/ true, /*weak*/ false, disp_hdr);
-      __ br(Assembler::EQ, cont);
-
-      assert(oopDesc::mark_offset_in_bytes() == 0, "offset of _mark is not 0");
-
-      // If the compare-and-exchange succeeded, then we found an unlocked
-      // object, will have now locked it will continue at label cont
-
-      // Check if the owner is self by comparing the value in the
-      // markWord of object (disp_hdr) with the stack pointer.
-      __ mov(rscratch1, sp);
-      __ sub(disp_hdr, disp_hdr, rscratch1);
-      __ mov(tmp, (address) (~(os::vm_page_size()-1) | markWord::lock_mask_in_place));
-      // If condition is true we are cont and hence we can store 0 as the
-      // displaced header in the box, which indicates that it is a recursive lock.
-      __ ands(tmp/*==0?*/, disp_hdr, tmp);   // Sets flags for result
-      __ str(tmp/*==0, perhaps*/, Address(box, BasicLock::displaced_header_offset_in_bytes()));
-      __ b(cont);
-    } else {
-      assert(LockingMode == LM_LIGHTWEIGHT, "must be");
-      __ fast_lock(oop, disp_hdr, tmp, rscratch1, no_count);
-      __ b(count);
-    }
-
-    // Handle existing monitor.
-    __ bind(object_has_monitor);
-
-    // The object's monitor m is unlocked iff m->owner == NULL,
-    // otherwise m->owner may contain a thread or a stack address.
-    //
-    // Try to CAS m->owner from NULL to current thread.
-    __ add(tmp, disp_hdr, (in_bytes(ObjectMonitor::owner_offset())-markWord::monitor_value));
-    __ cmpxchg(tmp, zr, rthread, Assembler::xword, /*acquire*/ true,
-               /*release*/ true, /*weak*/ false, rscratch1); // Sets flags for result
-
-    if (LockingMode != LM_LIGHTWEIGHT) {
-      // Store a non-null value into the box to avoid looking like a re-entrant
-      // lock. The fast-path monitor unlock code checks for
-      // markWord::monitor_value so use markWord::unused_mark which has the
-      // relevant bit set, and also matches ObjectSynchronizer::enter.
-      __ mov(tmp, (address)markWord::unused_mark().value());
-      __ str(tmp, Address(box, BasicLock::displaced_header_offset_in_bytes()));
-    }
-    __ br(Assembler::EQ, cont); // CAS success means locking succeeded
-
-    __ cmp(rscratch1, rthread);
-    __ br(Assembler::NE, cont); // Check for recursive locking
-
-    // Recursive lock case
-    __ increment(Address(disp_hdr, in_bytes(ObjectMonitor::recursions_offset()) - markWord::monitor_value), 1);
-    // flag == EQ still from the cmp above, checking if this is a reentrant lock
-
-    __ bind(cont);
-    // flag == EQ indicates success
-    // flag == NE indicates failure
-    __ br(Assembler::NE, no_count);
-
-    __ bind(count);
-    __ increment(Address(rthread, JavaThread::held_monitor_count_offset()));
-
-    __ bind(no_count);
-  %}
-
-  enc_class aarch64_enc_fast_unlock(iRegP object, iRegP box, iRegP tmp, iRegP tmp2) %{
-    C2_MacroAssembler _masm(&cbuf);
-    Register oop = as_Register($object$$reg);
-    Register box = as_Register($box$$reg);
-    Register disp_hdr = as_Register($tmp$$reg);
-    Register tmp = as_Register($tmp2$$reg);
-    Label cont;
-    Label object_has_monitor;
-    Label count, no_count;
-
-    assert_different_registers(oop, box, tmp, disp_hdr);
-
-    if (LockingMode == LM_LEGACY) {
-      // Find the lock address and load the displaced header from the stack.
-      __ ldr(disp_hdr, Address(box, BasicLock::displaced_header_offset_in_bytes()));
-
-      // If the displaced header is 0, we have a recursive unlock.
-      __ cmp(disp_hdr, zr);
-      __ br(Assembler::EQ, cont);
-    }
-
-    // Handle existing monitor.
-    __ ldr(tmp, Address(oop, oopDesc::mark_offset_in_bytes()));
-    __ tbnz(tmp, exact_log2(markWord::monitor_value), object_has_monitor);
-
-    if (LockingMode == LM_MONITOR) {
-      __ tst(oop, oop); // Set NE to indicate 'failure' -> take slow-path. We know that oop != 0.
-      __ b(cont);
-    } else if (LockingMode == LM_LEGACY) {
-      // Check if it is still a light weight lock, this is is true if we
-      // see the stack address of the basicLock in the markWord of the
-      // object.
-
-      __ cmpxchg(oop, box, disp_hdr, Assembler::xword, /*acquire*/ false,
-                 /*release*/ true, /*weak*/ false, tmp);
-      __ b(cont);
-    } else {
-      assert(LockingMode == LM_LIGHTWEIGHT, "must be");
-      __ fast_unlock(oop, tmp, box, disp_hdr, no_count);
-      __ b(count);
-    }
-
-    assert(oopDesc::mark_offset_in_bytes() == 0, "offset of _mark is not 0");
-
-    // Handle existing monitor.
-    __ bind(object_has_monitor);
-    STATIC_ASSERT(markWord::monitor_value <= INT_MAX);
-    __ add(tmp, tmp, -(int)markWord::monitor_value); // monitor
-
-    if (LockingMode == LM_LIGHTWEIGHT) {
-      // If the owner is anonymous, we need to fix it -- in an outline stub.
-      Register tmp2 = disp_hdr;
-      __ ldr(tmp2, Address(tmp, ObjectMonitor::owner_offset()));
-      // We cannot use tbnz here, the target might be too far away and cannot
-      // be encoded.
-      __ tst(tmp2, (uint64_t)ObjectMonitor::ANONYMOUS_OWNER);
-      C2HandleAnonOMOwnerStub* stub = new (Compile::current()->comp_arena()) C2HandleAnonOMOwnerStub(tmp, tmp2);
-      Compile::current()->output()->add_stub(stub);
-      __ br(Assembler::NE, stub->entry());
-      __ bind(stub->continuation());
-    }
-
-    __ ldr(disp_hdr, Address(tmp, ObjectMonitor::recursions_offset()));
-
-    Label notRecursive;
-    __ cbz(disp_hdr, notRecursive);
-
-    // Recursive lock
-    __ sub(disp_hdr, disp_hdr, 1u);
-    __ str(disp_hdr, Address(tmp, ObjectMonitor::recursions_offset()));
-    __ cmp(disp_hdr, disp_hdr); // Sets flags for result
-    __ b(cont);
-
-    __ bind(notRecursive);
-    __ ldr(rscratch1, Address(tmp, ObjectMonitor::EntryList_offset()));
-    __ ldr(disp_hdr, Address(tmp, ObjectMonitor::cxq_offset()));
-    __ orr(rscratch1, rscratch1, disp_hdr); // Will be 0 if both are 0.
-    __ cmp(rscratch1, zr); // Sets flags for result
-    __ cbnz(rscratch1, cont);
-    // need a release store here
-    __ lea(tmp, Address(tmp, ObjectMonitor::owner_offset()));
-    __ stlr(zr, tmp); // set unowned
-
-    __ bind(cont);
-    // flag == EQ indicates success
-    // flag == NE indicates failure
-    __ br(Assembler::NE, no_count);
-
-    __ bind(count);
-    __ decrement(Address(rthread, JavaThread::held_monitor_count_offset()));
-
-    __ bind(no_count);
   %}
 
 %}
@@ -5076,6 +4885,18 @@ operand iRegPNoSp()
   // match(iRegP_R4);
   // match(iRegP_R5);
   // match(thread_RegP);
+  op_cost(0);
+  format %{ %}
+  interface(REG_INTER);
+%}
+
+// This operand is not allowed to use rfp even if
+// rfp is not used to hold the frame pointer.
+operand iRegPNoSpNoRfp()
+%{
+  constraint(ALLOC_IN_RC(no_special_no_rfp_ptr_reg));
+  match(RegP);
+  match(iRegPNoSp);
   op_cost(0);
   format %{ %}
   interface(REG_INTER);
@@ -16609,17 +16430,19 @@ instruct branchLoopEnd(cmpOp cmp, rFlagsReg cr, label lbl)
 // ============================================================================
 // inlined locking and unlocking
 
-instruct cmpFastLock(rFlagsReg cr, iRegP object, iRegP box, iRegPNoSp tmp, iRegPNoSp tmp2)
+instruct cmpFastLock(rFlagsReg cr, iRegP object, iRegP box, iRegPNoSp tmp, iRegPNoSp tmp2, iRegPNoSp tmp3)
 %{
   match(Set cr (FastLock object box));
-  effect(TEMP tmp, TEMP tmp2);
+  effect(TEMP tmp, TEMP tmp2, TEMP tmp3);
 
   // TODO
   // identify correct cost
   ins_cost(5 * INSN_COST);
   format %{ "fastlock $object,$box\t! kills $tmp,$tmp2" %}
 
-  ins_encode(aarch64_enc_fast_lock(object, box, tmp, tmp2));
+  ins_encode %{
+    __ fast_lock($object$$Register, $box$$Register, $tmp$$Register, $tmp2$$Register, $tmp3$$Register);
+  %}
 
   ins_pipe(pipe_serial);
 %}
@@ -16632,7 +16455,9 @@ instruct cmpFastUnlock(rFlagsReg cr, iRegP object, iRegP box, iRegPNoSp tmp, iRe
   ins_cost(5 * INSN_COST);
   format %{ "fastunlock $object,$box\t! kills $tmp, $tmp2" %}
 
-  ins_encode(aarch64_enc_fast_unlock(object, box, tmp, tmp2));
+  ins_encode %{
+    __ fast_unlock($object$$Register, $box$$Register, $tmp$$Register, $tmp2$$Register);
+  %}
 
   ins_pipe(pipe_serial);
 %}
@@ -16754,7 +16579,9 @@ instruct CallLeafNoFPDirect(method meth)
 // Also known as an 'interprocedural jump'.
 // Target of jump will eventually return to caller.
 // TailJump below removes the return address.
-instruct TailCalljmpInd(iRegPNoSp jump_target, inline_cache_RegP method_ptr)
+// Don't use rfp for 'jump_target' because a MachEpilogNode has already been
+// emitted just above the TailCall which has reset rfp to the caller state.
+instruct TailCalljmpInd(iRegPNoSpNoRfp jump_target, inline_cache_RegP method_ptr)
 %{
   match(TailCall jump_target method_ptr);
 
@@ -16767,7 +16594,7 @@ instruct TailCalljmpInd(iRegPNoSp jump_target, inline_cache_RegP method_ptr)
   ins_pipe(pipe_class_call);
 %}
 
-instruct TailjmpInd(iRegPNoSp jump_target, iRegP_R0 ex_oop)
+instruct TailjmpInd(iRegPNoSpNoRfp jump_target, iRegP_R0 ex_oop)
 %{
   match(TailJump jump_target ex_oop);
 
@@ -16860,6 +16687,39 @@ instruct partialSubtypeCheck(iRegP_R4 sub, iRegP_R0 super, iRegP_R2 temp, iRegP_
   ins_encode(aarch64_enc_partial_subtype_check(sub, super, temp, result));
 
   opcode(0x1); // Force zero of result reg on hit
+
+  ins_pipe(pipe_class_memory);
+%}
+
+instruct partialSubtypeCheckConstSuper(iRegP_R4 sub, iRegP_R0 super_reg, immP super_con, vRegD_V0 vtemp, iRegP_R5 result,
+                                       iRegP_R1 tempR1, iRegP_R2 tempR2, iRegP_R3 tempR3,
+                                       rFlagsReg cr)
+%{
+  match(Set result (PartialSubtypeCheck sub (Binary super_reg super_con)));
+  predicate(UseSecondarySupersTable);
+  effect(KILL cr, TEMP tempR1, TEMP tempR2, TEMP tempR3, TEMP vtemp);
+
+  ins_cost(700);  // smaller than the next version
+  format %{ "partialSubtypeCheck $result, $sub, super" %}
+
+  ins_encode %{
+    bool success = false;
+    u1 super_klass_slot = ((Klass*)$super_con$$constant)->hash_slot();
+    if (InlineSecondarySupersTest) {
+      success = __ lookup_secondary_supers_table($sub$$Register, $super_reg$$Register,
+                                                 $tempR1$$Register, $tempR2$$Register, $tempR3$$Register,
+                                                 $vtemp$$FloatRegister,
+                                                 $result$$Register,
+                                                 super_klass_slot);
+    } else {
+      address call = __ trampoline_call(RuntimeAddress(StubRoutines::lookup_secondary_supers_table_stub(super_klass_slot)));
+      success = (call != nullptr);
+    }
+    if (!success) {
+      ciEnv::current()->record_failure("CodeCache is full");
+      return;
+    }
+  %}
 
   ins_pipe(pipe_class_memory);
 %}
@@ -17335,6 +17195,32 @@ instruct array_equalsC(iRegP_R1 ary1, iRegP_R2 ary2, iRegI_R0 result,
                                    $tmp1$$Register, $tmp2$$Register, $tmp3$$Register,
                                    $result$$Register, $tmp$$Register, 2);
     if (tpc == NULL) {
+      ciEnv::current()->record_failure("CodeCache is full");
+      return;
+    }
+  %}
+  ins_pipe(pipe_class_memory);
+%}
+
+instruct arrays_hashcode(iRegP_R1 ary, iRegI_R2 cnt, iRegI_R0 result, immI basic_type,
+                         vRegD_V0 vtmp0, vRegD_V1 vtmp1, vRegD_V2 vtmp2, vRegD_V3 vtmp3,
+                         vRegD_V4 vtmp4, vRegD_V5 vtmp5, vRegD_V6 vtmp6, vRegD_V7 vtmp7,
+                         vRegD_V12 vtmp8, vRegD_V13 vtmp9, rFlagsReg cr)
+%{
+  match(Set result (VectorizedHashCode (Binary ary cnt) (Binary result basic_type)));
+  effect(TEMP vtmp0, TEMP vtmp1, TEMP vtmp2, TEMP vtmp3, TEMP vtmp4, TEMP vtmp5, TEMP vtmp6,
+         TEMP vtmp7, TEMP vtmp8, TEMP vtmp9, USE_KILL ary, USE_KILL cnt, USE basic_type, KILL cr);
+
+  format %{ "Array HashCode array[] $ary,$cnt,$result,$basic_type -> $result   // KILL all" %}
+  ins_encode %{
+    address tpc = __ arrays_hashcode($ary$$Register, $cnt$$Register, $result$$Register,
+                                     $vtmp3$$FloatRegister, $vtmp2$$FloatRegister,
+                                     $vtmp1$$FloatRegister, $vtmp0$$FloatRegister,
+                                     $vtmp4$$FloatRegister, $vtmp5$$FloatRegister,
+                                     $vtmp6$$FloatRegister, $vtmp7$$FloatRegister,
+                                     $vtmp8$$FloatRegister, $vtmp9$$FloatRegister,
+                                     (BasicType)$basic_type$$constant);
+    if (tpc == nullptr) {
       ciEnv::current()->record_failure("CodeCache is full");
       return;
     }

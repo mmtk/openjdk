@@ -25,6 +25,7 @@
 
 #include "precompiled.hpp"
 #include "asm/macroAssembler.inline.hpp"
+#include "compiler/disassembler.hpp"
 #include "compiler/compilerDefinitions.inline.hpp"
 #include "gc/shared/barrierSetAssembler.hpp"
 #include "gc/shared/collectedHeap.hpp"
@@ -46,7 +47,7 @@
 #include "runtime/synchronizer.hpp"
 #include "utilities/powerOfTwo.hpp"
 
-#define __ _masm->
+#define __ Disassembler::hook<InterpreterMacroAssembler>(__FILE__, __LINE__, _masm)->
 
 // Address computation: local variables
 
@@ -1135,6 +1136,7 @@ void TemplateTable::aastore() {
   // Get the value we will store
   __ ldr(r0, at_tos());
   // Now store using the appropriate barrier
+  // Clobbers: r10, r11, r3
   do_oop_store(_masm, element_address, r0, IS_ARRAY);
   __ b(done);
 
@@ -1143,6 +1145,7 @@ void TemplateTable::aastore() {
   __ profile_null_seen(r2);
 
   // Store a null
+  // Clobbers: r10, r11, r3
   do_oop_store(_masm, element_address, noreg, IS_ARRAY);
 
   // Pop stack arguments
@@ -2775,6 +2778,7 @@ void TemplateTable::putfield_or_static(int byte_no, bool is_static, RewriteContr
     __ pop(atos);
     if (!is_static) pop_and_check_object(obj);
     // Store into the field
+    // Clobbers: r10, r11, r3
     do_oop_store(_masm, field, r0, IN_HEAP);
     if (rc == may_rewrite) {
       patch_bytecode(Bytecodes::_fast_aputfield, bc, r1, true, byte_no);
@@ -2974,8 +2978,8 @@ void TemplateTable::fast_storefield(TosState state)
   // Must prevent reordering of the following cp cache loads with bytecode load
   __ membar(MacroAssembler::LoadLoad);
 
-  // test for volatile with r3
-  __ ldrw(r3, Address(r2, in_bytes(base +
+  // test for volatile with r5
+  __ ldrw(r5, Address(r2, in_bytes(base +
                                    ConstantPoolCacheEntry::flags_offset())));
 
   // replace index with field offset from cache entry
@@ -2983,7 +2987,7 @@ void TemplateTable::fast_storefield(TosState state)
 
   {
     Label notVolatile;
-    __ tbz(r3, ConstantPoolCacheEntry::is_volatile_shift, notVolatile);
+    __ tbz(r5, ConstantPoolCacheEntry::is_volatile_shift, notVolatile);
     __ membar(MacroAssembler::StoreStore | MacroAssembler::LoadStore);
     __ bind(notVolatile);
   }
@@ -3000,6 +3004,7 @@ void TemplateTable::fast_storefield(TosState state)
   // access field
   switch (bytecode()) {
   case Bytecodes::_fast_aputfield:
+    // Clobbers: r10, r11, r3
     do_oop_store(_masm, field, r0, IN_HEAP);
     break;
   case Bytecodes::_fast_lputfield:
@@ -3032,7 +3037,7 @@ void TemplateTable::fast_storefield(TosState state)
 
   {
     Label notVolatile;
-    __ tbz(r3, ConstantPoolCacheEntry::is_volatile_shift, notVolatile);
+    __ tbz(r5, ConstantPoolCacheEntry::is_volatile_shift, notVolatile);
     __ membar(MacroAssembler::StoreLoad | MacroAssembler::StoreStore);
     __ bind(notVolatile);
   }
@@ -3820,7 +3825,7 @@ void TemplateTable::monitorenter()
         rfp, frame::interpreter_frame_monitor_block_top_offset * wordSize);
   const Address monitor_block_bot(
         rfp, frame::interpreter_frame_initial_sp_offset * wordSize);
-  const int entry_size = frame::interpreter_frame_monitor_size() * wordSize;
+  const int entry_size = frame::interpreter_frame_monitor_size_in_bytes();
 
   Label allocated;
 
@@ -3923,7 +3928,7 @@ void TemplateTable::monitorexit()
         rfp, frame::interpreter_frame_monitor_block_top_offset * wordSize);
   const Address monitor_block_bot(
         rfp, frame::interpreter_frame_initial_sp_offset * wordSize);
-  const int entry_size = frame::interpreter_frame_monitor_size() * wordSize;
+  const int entry_size = frame::interpreter_frame_monitor_size_in_bytes();
 
   Label found;
 

@@ -920,8 +920,8 @@ public class Flow {
                 current.complete();
 
                 if (current.isSealed() && current.isAbstract()) {
-                    for (Symbol sym : current.permitted) {
-                        ClassSymbol csym = (ClassSymbol) sym;
+                    for (Type t : current.getPermittedSubclasses()) {
+                        ClassSymbol csym = (ClassSymbol) t.tsym;
 
                         if (accept.test(csym)) {
                             permittedSubtypesClosure = permittedSubtypesClosure.prepend(csym);
@@ -3480,7 +3480,9 @@ public class Flow {
             for (List<JCPattern> it = record.nested;
                  it.nonEmpty();
                  it = it.tail, i++) {
-                nestedDescriptions[i] = makePatternDescription(types.erasure(componentTypes[i]), it.head);
+                Type componentType = i < componentTypes.length ? componentTypes[i]
+                                                               : syms.errType;
+                nestedDescriptions[i] = makePatternDescription(types.erasure(componentType), it.head);
             }
             return new RecordPattern(record.type, componentTypes, nestedDescriptions);
         } else if (pattern instanceof JCAnyPattern) {

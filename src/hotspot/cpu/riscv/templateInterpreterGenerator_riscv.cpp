@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2003, 2024, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2014, 2020, Red Hat Inc. All rights reserved.
  * Copyright (c) 2020, 2022, Huawei Technologies Co., Ltd. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
@@ -27,6 +27,7 @@
 #include "precompiled.hpp"
 #include "asm/macroAssembler.inline.hpp"
 #include "classfile/javaClasses.hpp"
+#include "compiler/disassembler.hpp"
 #include "gc/shared/barrierSetAssembler.hpp"
 #include "interpreter/bytecodeHistogram.hpp"
 #include "interpreter/bytecodeTracer.hpp"
@@ -67,7 +68,7 @@
 // Max size with JVMTI
 int TemplateInterpreter::InterpreterCodeSize = 256 * 1024;
 
-#define __ _masm->
+#define __ Disassembler::hook<InterpreterMacroAssembler>(__FILE__, __LINE__, _masm)->
 
 //-----------------------------------------------------------------------------
 
@@ -600,7 +601,7 @@ void TemplateInterpreterGenerator::generate_stack_overflow_check(void) {
 
   // monitor entry size: see picture of stack set
   // (generate_method_entry) and frame_amd64.hpp
-  const int entry_size = frame::interpreter_frame_monitor_size() * wordSize;
+  const int entry_size = frame::interpreter_frame_monitor_size_in_bytes();
 
   // total overhead size: entry_size + (saved fp through expr stack
   // bottom).  be sure to change this if you add/subtract anything
@@ -673,7 +674,7 @@ void TemplateInterpreterGenerator::lock_method() {
   // synchronize method
   const Address access_flags(xmethod, Method::access_flags_offset());
   const Address monitor_block_top(fp, frame::interpreter_frame_monitor_block_top_offset * wordSize);
-  const int entry_size = frame::interpreter_frame_monitor_size() * wordSize;
+  const int entry_size = frame::interpreter_frame_monitor_size_in_bytes();
 
 #ifdef ASSERT
   __ lwu(x10, access_flags);
@@ -1729,13 +1730,21 @@ void TemplateInterpreterGenerator::set_vtos_entry_points(Template* t,
                                                          address& vep) {
   assert(t != nullptr && t->is_valid() && t->tos_in() == vtos, "illegal template");
   Label L;
-  aep = __ pc();  __ push_ptr();  __ j(L);
-  fep = __ pc();  __ push_f();    __ j(L);
-  dep = __ pc();  __ push_d();    __ j(L);
-  lep = __ pc();  __ push_l();    __ j(L);
-  bep = cep = sep =
-  iep = __ pc();  __ push_i();
-  vep = __ pc();
+  aep = __ pc();     // atos entry point
+      __ push_ptr();
+      __ j(L);
+  fep = __ pc();     // ftos entry point
+      __ push_f();
+      __ j(L);
+  dep = __ pc();     // dtos entry point
+      __ push_d();
+      __ j(L);
+  lep = __ pc();     // ltos entry point
+      __ push_l();
+      __ j(L);
+  bep = cep = sep = iep = __ pc();     // [bcsi]tos entry point
+      __ push_i();
+  vep = __ pc();     // vtos entry point
   __ bind(L);
   generate_and_dispatch(t);
 }

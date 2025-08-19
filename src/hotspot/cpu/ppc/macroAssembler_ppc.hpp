@@ -179,6 +179,9 @@ class MacroAssembler: public Assembler {
   void inline set_cmp3(Register dst);
   // set dst to (treat_unordered_like_less ? -1 : +1)
   void inline set_cmpu3(Register dst, bool treat_unordered_like_less);
+  // Convert between half precision float encoded into a short and a float in a FloatRegister.
+  void inline f2hf(Register dst, FloatRegister src, FloatRegister tmp);
+  void inline hf2f(FloatRegister dst, Register src);
 
   inline void pd_patch_instruction(address branch, address target, const char* file, int line);
   NOT_PRODUCT(static void pd_print_patched_instruction(address branch);)
@@ -607,8 +610,8 @@ class MacroAssembler: public Assembler {
   void inc_held_monitor_count(Register tmp);
   void dec_held_monitor_count(Register tmp);
   void atomically_flip_locked_state(bool is_unlock, Register obj, Register tmp, Label& failed, int semantics);
-  void fast_lock(Register obj, Register hdr, Register t1, Label& slow);
-  void fast_unlock(Register obj, Register hdr, Label& slow);
+  void lightweight_lock(Register obj, Register hdr, Register t1, Label& slow);
+  void lightweight_unlock(Register obj, Register hdr, Label& slow);
 
   // allocation (for C1)
   void tlab_allocate(

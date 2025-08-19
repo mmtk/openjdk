@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -36,6 +36,7 @@
 #include "compiler/compilerDefinitions.inline.hpp"
 #include "gc/shared/collectedHeap.hpp"
 #include "interpreter/bytecode.hpp"
+#include "interpreter/bytecode.inline.hpp"
 #include "interpreter/interpreter.hpp"
 #include "interpreter/oopMapCache.hpp"
 #include "jvm.h"
@@ -82,6 +83,7 @@
 #include "runtime/stackValue.hpp"
 #include "runtime/stackWatermarkSet.hpp"
 #include "runtime/stubRoutines.hpp"
+#include "runtime/synchronizer.hpp"
 #include "runtime/threadSMR.hpp"
 #include "runtime/threadWXSetters.inline.hpp"
 #include "runtime/vframe.hpp"
@@ -389,7 +391,8 @@ static void restore_eliminated_locks(JavaThread* thread, GrowableArray<compiledV
 #ifndef PRODUCT
   bool first = true;
 #endif // !PRODUCT
-  for (int i = 0; i < chunk->length(); i++) {
+  // Start locking from outermost/oldest frame
+  for (int i = (chunk->length() - 1); i >= 0; i--) {
     compiledVFrame* cvf = chunk->at(i);
     assert (cvf->scope() != nullptr,"expect only compiled java frames");
     GrowableArray<MonitorInfo*>* monitors = cvf->monitors();
@@ -532,7 +535,7 @@ Deoptimization::UnrollBlock* Deoptimization::fetch_unroll_info_helper(JavaThread
 #if COMPILER2_OR_JVMCI
   if ((jvmci_enabled COMPILER2_PRESENT( || ((DoEscapeAnalysis || EliminateNestedLocks) && EliminateLocks) ))
       && !EscapeBarrier::objs_are_deoptimized(current, deoptee.id())) {
-    bool unused;
+    bool unused = false;
     restore_eliminated_locks(current, chunk, realloc_failures, deoptee, exec_mode, unused);
   }
 #endif // COMPILER2_OR_JVMCI
@@ -634,11 +637,12 @@ Deoptimization::UnrollBlock* Deoptimization::fetch_unroll_info_helper(JavaThread
   bool caller_was_method_handle = false;
   if (deopt_sender.is_interpreted_frame()) {
     methodHandle method(current, deopt_sender.interpreter_frame_method());
-    Bytecode_invoke cur = Bytecode_invoke_check(method, deopt_sender.interpreter_frame_bci());
-    if (cur.is_invokedynamic() || cur.is_invokehandle()) {
-      // Method handle invokes may involve fairly arbitrary chains of
-      // calls so it's impossible to know how much actual space the
-      // caller has for locals.
+    Bytecode_invoke cur(method, deopt_sender.interpreter_frame_bci());
+    if (cur.has_member_arg()) {
+      // This should cover all real-world cases.  One exception is a pathological chain of
+      // MH.linkToXXX() linker calls, which only trusted code could do anyway.  To handle that case, we
+      // would need to get the size from the resolved method entry.  Another exception would
+      // be an invokedynamic with an adapter that is really a MethodHandle linker.
       caller_was_method_handle = true;
     }
   }
@@ -741,9 +745,14 @@ Deoptimization::UnrollBlock* Deoptimization::fetch_unroll_info_helper(JavaThread
   }
 #endif
 
+  int caller_actual_parameters = -1; // value not used except for interpreted frames, see below
+  if (deopt_sender.is_interpreted_frame()) {
+    caller_actual_parameters = callee_parameters + (caller_was_method_handle ? 1 : 0);
+  }
+
   UnrollBlock* info = new UnrollBlock(array->frame_size() * BytesPerWord,
                                       caller_adjustment * BytesPerWord,
-                                      caller_was_method_handle ? 0 : callee_parameters,
+                                      caller_actual_parameters,
                                       number_of_frames,
                                       frame_sizes,
                                       frame_pcs,
@@ -932,7 +941,7 @@ JRT_LEAF(BasicType, Deoptimization::unpack_frames(JavaThread* thread, int exec_m
       if (Bytecodes::is_invoke(cur_code)) {
         Bytecode_invoke invoke(mh, iframe->interpreter_frame_bci());
         cur_invoke_parameter_size = invoke.size_of_parameters();
-        if (i != 0 && !invoke.is_invokedynamic() && MethodHandles::has_member_arg(invoke.klass(), invoke.name())) {
+        if (i != 0 && invoke.has_member_arg()) {
           callee_size_of_parameters++;
         }
       }
@@ -1614,6 +1623,10 @@ void Deoptimization::reassign_fields(frame* fr, RegisterMap* reg_map, GrowableAr
       reassign_object_array_elements(fr, reg_map, sv, (objArrayOop) obj());
     }
   }
+  // These objects may escape when we return to Interpreter after deoptimization.
+  // We need barrier so that stores that initialize these objects can't be reordered
+  // with subsequent stores that make these objects accessible by other threads.
+  OrderAccess::storestore();
 }
 
 
@@ -1648,9 +1661,19 @@ bool Deoptimization::relock_objects(JavaThread* thread, GrowableArray<MonitorInf
             }
           }
         }
-        BasicLock* lock = mon_info->lock();
-        ObjectSynchronizer::enter(obj, lock, deoptee_thread);
-        assert(mon_info->owner()->is_locked(), "object must be locked now");
+        if (LockingMode == LM_LIGHTWEIGHT && exec_mode == Unpack_none) {
+          // We have lost information about the correct state of the lock stack.
+          // Inflate the locks instead. Enter then inflate to avoid races with
+          // deflation.
+          ObjectSynchronizer::enter(obj, nullptr, deoptee_thread);
+          assert(mon_info->owner()->is_locked(), "object must be locked now");
+          ObjectMonitor* mon = ObjectSynchronizer::inflate(deoptee_thread, obj(), ObjectSynchronizer::inflate_cause_vm_internal);
+          assert(mon->owner() == deoptee_thread, "must be");
+        } else {
+          BasicLock* lock = mon_info->lock();
+          ObjectSynchronizer::enter(obj, lock, deoptee_thread);
+          assert(mon_info->owner()->is_locked(), "object must be locked now");
+        }
       }
     }
   }
@@ -1721,13 +1744,14 @@ void Deoptimization::pop_frames_failed_reallocs(JavaThread* thread, vframeArray*
   for (int i = 0; i < array->frames(); i++) {
     MonitorChunk* monitors = array->element(i)->monitors();
     if (monitors != nullptr) {
-      for (int j = 0; j < monitors->number_of_monitors(); j++) {
+      // Unlock in reverse order starting from most nested monitor.
+      for (int j = (monitors->number_of_monitors() - 1); j >= 0; j--) {
         BasicObjectLock* src = monitors->at(j);
         if (src->obj() != nullptr) {
           ObjectSynchronizer::exit(src->obj(), src->lock(), thread);
         }
       }
-      array->element(i)->free_monitors(thread);
+      array->element(i)->free_monitors();
 #ifdef ASSERT
       array->element(i)->set_removed_monitors();
 #endif

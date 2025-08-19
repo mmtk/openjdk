@@ -27,6 +27,7 @@ package java.lang;
 
 import jdk.internal.misc.CDS;
 import jdk.internal.vm.annotation.IntrinsicCandidate;
+import jdk.internal.vm.annotation.Stable;
 
 import java.lang.constant.Constable;
 import java.lang.constant.DynamicConstantDesc;
@@ -8956,9 +8957,10 @@ class Character implements java.io.Serializable, Comparable<Character>, Constabl
         this.value = value;
     }
 
-    private static class CharacterCache {
+    private static final class CharacterCache {
         private CharacterCache(){}
 
+        @Stable
         static final Character[] cache;
         static Character[] archivedCache;
 
@@ -8967,7 +8969,7 @@ class Character implements java.io.Serializable, Comparable<Character>, Constabl
 
             // Load and use the archived cache if it exists
             CDS.initializeFromArchive(CharacterCache.class);
-            if (archivedCache == null || archivedCache.length != size) {
+            if (archivedCache == null) {
                 Character[] c = new Character[size];
                 for (int i = 0; i < size; i++) {
                     c[i] = new Character((char) i);
@@ -8975,6 +8977,7 @@ class Character implements java.io.Serializable, Comparable<Character>, Constabl
                 archivedCache = c;
             }
             cache = archivedCache;
+            assert cache.length == size;
         }
     }
 

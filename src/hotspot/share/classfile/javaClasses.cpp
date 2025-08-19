@@ -86,6 +86,7 @@
 #include "runtime/vframe.inline.hpp"
 #include "runtime/vm_version.hpp"
 #include "utilities/align.hpp"
+#include "utilities/globalDefinitions.hpp"
 #include "utilities/growableArray.hpp"
 #include "utilities/preserveException.hpp"
 #include "utilities/utf8.hpp"
@@ -786,6 +787,7 @@ int java_lang_Class::_class_loader_offset;
 int java_lang_Class::_module_offset;
 int java_lang_Class::_protection_domain_offset;
 int java_lang_Class::_component_mirror_offset;
+int java_lang_Class::_init_lock_offset;
 int java_lang_Class::_signers_offset;
 int java_lang_Class::_name_offset;
 int java_lang_Class::_source_file_offset;
@@ -911,6 +913,12 @@ void java_lang_Class::initialize_mirror_fields(Klass* k,
                                                Handle protection_domain,
                                                Handle classData,
                                                TRAPS) {
+  // Allocate a simple java object for a lock.
+  // This needs to be a java object because during class initialization
+  // it can be held across a java call.
+  typeArrayOop r = oopFactory::new_typeArray(T_INT, 0, CHECK);
+  set_init_lock(mirror(), r);
+
   // Set protection domain also
   set_protection_domain(mirror(), protection_domain());
 
@@ -1132,6 +1140,10 @@ bool java_lang_Class::restore_archived_mirror(Klass *k,
   if (!k->is_array_klass()) {
     // - local static final fields with initial values were initialized at dump time
 
+    // create the init_lock
+    typeArrayOop r = oopFactory::new_typeArray(T_INT, 0, CHECK_(false));
+    set_init_lock(mirror(), r);
+
     if (protection_domain.not_null()) {
       set_protection_domain(mirror(), protection_domain());
     }
@@ -1198,6 +1210,15 @@ void java_lang_Class::set_component_mirror(oop java_class, oop comp_mirror) {
 oop java_lang_Class::component_mirror(oop java_class) {
   assert(_component_mirror_offset != 0, "must be set");
   return java_class->obj_field(_component_mirror_offset);
+}
+
+oop java_lang_Class::init_lock(oop java_class) {
+  assert(_init_lock_offset != 0, "must be set");
+  return java_class->obj_field(_init_lock_offset);
+}
+void java_lang_Class::set_init_lock(oop java_class, oop init_lock) {
+  assert(_init_lock_offset != 0, "must be set");
+  java_class->obj_field_put(_init_lock_offset, init_lock);
 }
 
 objArrayOop java_lang_Class::signers(oop java_class) {
@@ -1418,7 +1439,6 @@ void java_lang_Class::compute_offsets() {
 
   InstanceKlass* k = vmClasses::Class_klass();
   CLASS_FIELDS_DO(FIELD_COMPUTE_OFFSET);
-
   CLASS_INJECTED_FIELDS(INJECTED_FIELD_COMPUTE_OFFSET);
 }
 
@@ -1989,24 +2009,28 @@ int java_lang_VirtualThread::state(oop vthread) {
 
 JavaThreadStatus java_lang_VirtualThread::map_state_to_thread_status(int state) {
   JavaThreadStatus status = JavaThreadStatus::NEW;
-  switch (state) {
-    case NEW :
+  switch (state & ~SUSPENDED) {
+    case NEW:
       status = JavaThreadStatus::NEW;
       break;
-    case STARTED :
-    case RUNNABLE :
-    case RUNNABLE_SUSPENDED :
-    case RUNNING :
-    case PARKING :
-    case YIELDING :
+    case STARTED:
+    case RUNNING:
+    case PARKING:
+    case TIMED_PARKING:
+    case UNPARKED:
+    case YIELDING:
+    case YIELDED:
       status = JavaThreadStatus::RUNNABLE;
       break;
-    case PARKED :
-    case PARKED_SUSPENDED :
-    case PINNED :
+    case PARKED:
+    case PINNED:
       status = JavaThreadStatus::PARKED;
       break;
-    case TERMINATED :
+    case TIMED_PARKED:
+    case TIMED_PINNED:
+      status = JavaThreadStatus::PARKED_TIMED;
+      break;
+    case TERMINATED:
       status = JavaThreadStatus::TERMINATED;
       break;
     default:
@@ -2076,18 +2100,17 @@ oop java_lang_Throwable::message(oop throwable) {
   return throwable->obj_field(_detailMessage_offset);
 }
 
-oop java_lang_Throwable::cause(oop throwable) {
-  return throwable->obj_field(_cause_offset);
+const char* java_lang_Throwable::message_as_utf8(oop throwable) {
+  oop msg = java_lang_Throwable::message(throwable);
+  const char* msg_utf8 = nullptr;
+  if (msg != nullptr) {
+    msg_utf8 = java_lang_String::as_utf8_string(msg);
+  }
+  return msg_utf8;
 }
 
-// Return Symbol for detailed_message or null
-Symbol* java_lang_Throwable::detail_message(oop throwable) {
-  PreserveExceptionMark pm(Thread::current());
-  oop detailed_message = java_lang_Throwable::message(throwable);
-  if (detailed_message != nullptr) {
-    return java_lang_String::as_symbol(detailed_message);
-  }
-  return nullptr;
+oop java_lang_Throwable::cause(oop throwable) {
+  return throwable->obj_field(_cause_offset);
 }
 
 void java_lang_Throwable::set_message(oop throwable, oop value) {
@@ -2765,15 +2788,19 @@ Handle java_lang_Throwable::create_initialization_error(JavaThread* current, Han
   assert(throwable.not_null(), "shouldn't be");
 
   // Now create the message from the original exception and thread name.
-  Symbol* message = java_lang_Throwable::detail_message(throwable());
   ResourceMark rm(current);
+  const char *message = nullptr;
+  oop detailed_message = java_lang_Throwable::message(throwable());
+  if (detailed_message != nullptr) {
+    message = java_lang_String::as_utf8_string(detailed_message);
+  }
   stringStream st;
   st.print("Exception %s%s ", throwable()->klass()->name()->as_klass_external_name(),
              message == nullptr ? "" : ":");
   if (message == nullptr) {
     st.print("[in thread \"%s\"]", current->name());
   } else {
-    st.print("%s [in thread \"%s\"]", message->as_C_string(), current->name());
+    st.print("%s [in thread \"%s\"]", message, current->name());
   }
 
   Symbol* exception_name = vmSymbols::java_lang_ExceptionInInitializerError();
@@ -4412,28 +4439,31 @@ int java_lang_invoke_MethodType::rtype_slot_count(oop mt) {
 // Support for java_lang_invoke_CallSite
 
 int java_lang_invoke_CallSite::_target_offset;
-int java_lang_invoke_CallSite::_context_offset;
+int java_lang_invoke_CallSite::_vmdependencies_offset;
+int java_lang_invoke_CallSite::_last_cleanup_offset;
 
 #define CALLSITE_FIELDS_DO(macro) \
   macro(_target_offset,  k, "target", java_lang_invoke_MethodHandle_signature, false); \
-  macro(_context_offset, k, "context", java_lang_invoke_MethodHandleNatives_CallSiteContext_signature, false)
 
 void java_lang_invoke_CallSite::compute_offsets() {
   InstanceKlass* k = vmClasses::CallSite_klass();
   CALLSITE_FIELDS_DO(FIELD_COMPUTE_OFFSET);
+  CALLSITE_INJECTED_FIELDS(INJECTED_FIELD_COMPUTE_OFFSET);
 }
 
 #if INCLUDE_CDS
 void java_lang_invoke_CallSite::serialize_offsets(SerializeClosure* f) {
   CALLSITE_FIELDS_DO(FIELD_SERIALIZE_OFFSET);
+  CALLSITE_INJECTED_FIELDS(INJECTED_FIELD_SERIALIZE_OFFSET);
 }
 #endif
 
-oop java_lang_invoke_CallSite::context_no_keepalive(oop call_site) {
+DependencyContext java_lang_invoke_CallSite::vmdependencies(oop call_site) {
   assert(java_lang_invoke_CallSite::is_instance(call_site), "");
-
-  oop dep_oop = call_site->obj_field_access<AS_NO_KEEPALIVE>(_context_offset);
-  return dep_oop;
+  nmethodBucket* volatile* vmdeps_addr = call_site->field_addr<nmethodBucket* volatile>(_vmdependencies_offset);
+  volatile uint64_t* last_cleanup_addr = call_site->field_addr<volatile uint64_t>(_last_cleanup_offset);
+  DependencyContext dep_ctx(vmdeps_addr, last_cleanup_addr);
+  return dep_ctx;
 }
 
 // Support for java_lang_invoke_ConstantCallSite
@@ -4453,30 +4483,6 @@ void java_lang_invoke_ConstantCallSite::serialize_offsets(SerializeClosure* f) {
   CONSTANTCALLSITE_FIELDS_DO(FIELD_SERIALIZE_OFFSET);
 }
 #endif
-
-// Support for java_lang_invoke_MethodHandleNatives_CallSiteContext
-
-int java_lang_invoke_MethodHandleNatives_CallSiteContext::_vmdependencies_offset;
-int java_lang_invoke_MethodHandleNatives_CallSiteContext::_last_cleanup_offset;
-
-void java_lang_invoke_MethodHandleNatives_CallSiteContext::compute_offsets() {
-  InstanceKlass* k = vmClasses::Context_klass();
-  CALLSITECONTEXT_INJECTED_FIELDS(INJECTED_FIELD_COMPUTE_OFFSET);
-}
-
-#if INCLUDE_CDS
-void java_lang_invoke_MethodHandleNatives_CallSiteContext::serialize_offsets(SerializeClosure* f) {
-  CALLSITECONTEXT_INJECTED_FIELDS(INJECTED_FIELD_SERIALIZE_OFFSET);
-}
-#endif
-
-DependencyContext java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdependencies(oop call_site) {
-  assert(java_lang_invoke_MethodHandleNatives_CallSiteContext::is_instance(call_site), "");
-  nmethodBucket* volatile* vmdeps_addr = call_site->field_addr<nmethodBucket* volatile>(_vmdependencies_offset);
-  volatile uint64_t* last_cleanup_addr = call_site->field_addr<volatile uint64_t>(_last_cleanup_offset);
-  DependencyContext dep_ctx(vmdeps_addr, last_cleanup_addr);
-  return dep_ctx;
-}
 
 // Support for java_security_AccessControlContext
 
@@ -4725,7 +4731,7 @@ public:
   UnsafeConstantsFixup() {
     // round up values for all static final fields
     _address_size = sizeof(void*);
-    _page_size = (int)os::vm_page_size();
+    _page_size = AIX_ONLY(sysconf(_SC_PAGESIZE)) NOT_AIX((int)os::vm_page_size());
     _big_endian = LITTLE_ENDIAN_ONLY(false) BIG_ENDIAN_ONLY(true);
     _use_unaligned_access = UseUnalignedAccesses;
     _data_cache_line_flush_size = (int)VM_Version::data_cache_line_flush_size();
@@ -5219,7 +5225,6 @@ void java_lang_InternalError::serialize_offsets(SerializeClosure* f) {
   f(java_lang_invoke_MethodType) \
   f(java_lang_invoke_CallSite) \
   f(java_lang_invoke_ConstantCallSite) \
-  f(java_lang_invoke_MethodHandleNatives_CallSiteContext) \
   f(java_security_AccessControlContext) \
   f(java_lang_reflect_AccessibleObject) \
   f(java_lang_reflect_Method) \
@@ -5293,7 +5298,6 @@ bool JavaClasses::is_supported_for_archiving(oop obj) {
       // constant pool entries, so excluding them shouldn't affect the archiving of static fields.
       klass == vmClasses::ResolvedMethodName_klass() ||
       klass == vmClasses::MemberName_klass() ||
-      klass == vmClasses::Context_klass() ||
       // It's problematic to archive Reference objects. One of the reasons is that
       // Reference::discovered may pull in unwanted objects (see JDK-8284336)
       klass->is_subclass_of(vmClasses::Reference_klass())) {

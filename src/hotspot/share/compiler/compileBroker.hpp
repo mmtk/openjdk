@@ -87,7 +87,7 @@ class CompileQueue : public CHeapObj<mtCompiler> {
 
   CompileTask* _first_stale;
 
-  int _size;
+  volatile int _size;
 
   void purge_stale_tasks();
  public:
@@ -252,6 +252,8 @@ class CompileBroker: AllStatic {
   static bool wait_for_jvmci_completion(JVMCICompiler* comp, CompileTask* task, JavaThread* thread);
 #endif
 
+  static void free_buffer_blob_if_allocated(CompilerThread* thread);
+
   static void invoke_compiler_on_method(CompileTask* task);
   static void handle_compile_error(CompilerThread* thread, CompileTask* task, ciEnv* ci_env,
                                    int compilable, const char* failure_reason);
@@ -397,6 +399,8 @@ public:
 
   static CompileLog* get_log(CompilerThread* ct);
 
+  static int get_c1_thread_count() {                return _compilers[0]->num_compiler_threads(); }
+  static int get_c2_thread_count() {                return _compilers[1]->num_compiler_threads(); }
   static int get_total_compile_count() {            return _total_compile_count; }
   static int get_total_bailout_count() {            return _total_bailout_count; }
   static int get_total_invalidated_count() {        return _total_invalidated_count; }

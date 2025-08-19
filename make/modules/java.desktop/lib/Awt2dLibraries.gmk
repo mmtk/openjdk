@@ -202,8 +202,12 @@ ifeq ($(call isTargetOs, windows macosx), false)
         common/awt/systemscale \
         common/font \
         common/java2d/opengl \
-        common/java2d/x11 \
-        $(LIBPIPEWIRE_HEADER_DIRS)
+        common/java2d/x11
+
+    # exclude pipewire from the AIX build, no Wayland support
+    ifeq ($(call isTargetOs, aix), false)
+      LIBAWT_XAWT_EXTRA_HEADER_DIRS += $(LIBPIPEWIRE_HEADER_DIRS)
+    endif
 
     LIBAWT_XAWT_CFLAGS += -DXAWT -DXAWT_HACK \
         $(FONTCONFIG_CFLAGS) \
@@ -237,12 +241,21 @@ ifeq ($(call isTargetOs, windows macosx), false)
         DISABLED_WARNINGS_gcc_gtk3_interface.c := parentheses type-limits unused-function, \
         DISABLED_WARNINGS_gcc_OGLBufImgOps.c := format-nonliteral, \
         DISABLED_WARNINGS_gcc_OGLPaints.c := format-nonliteral, \
+        DISABLED_WARNINGS_gcc_screencast_pipewire.c := undef, \
+        DISABLED_WARNINGS_gcc_screencast_portal.c := undef, \
         DISABLED_WARNINGS_gcc_sun_awt_X11_GtkFileDialogPeer.c := parentheses, \
         DISABLED_WARNINGS_gcc_X11SurfaceData.c := implicit-fallthrough pointer-to-int-cast, \
         DISABLED_WARNINGS_gcc_XlibWrapper.c := type-limits pointer-to-int-cast, \
         DISABLED_WARNINGS_gcc_XRBackendNative.c := maybe-uninitialized, \
         DISABLED_WARNINGS_gcc_XToolkit.c := unused-result, \
         DISABLED_WARNINGS_gcc_XWindow.c := unused-function, \
+        DISABLED_WARNINGS_clang_awt_Taskbar.c := parentheses, \
+        DISABLED_WARNINGS_clang_gtk2_interface.c := parentheses, \
+        DISABLED_WARNINGS_clang_gtk3_interface.c := parentheses, \
+        DISABLED_WARNINGS_clang_OGLBufImgOps.c := format-nonliteral, \
+        DISABLED_WARNINGS_clang_OGLPaints.c := format-nonliteral, \
+        DISABLED_WARNINGS_clang_screencast_pipewire.c := format-nonliteral, \
+        DISABLED_WARNINGS_clang_sun_awt_X11_GtkFileDialogPeer.c := parentheses, \
         DISABLED_WARNINGS_clang_aix := deprecated-non-prototype, \
         DISABLED_WARNINGS_clang_aix_awt_Taskbar.c := parentheses, \
         DISABLED_WARNINGS_clang_aix_OGLPaints.c := format-nonliteral, \
@@ -300,7 +313,7 @@ $(eval $(call SetupJdkLibrary, BUILD_LIBLCMS, \
         common/awt/debug \
         libawt/java2d, \
     HEADERS_FROM_SRC := $(LIBLCMS_HEADERS_FROM_SRC), \
-    DISABLED_WARNINGS_gcc := format-nonliteral type-limits stringop-truncation, \
+    DISABLED_WARNINGS_gcc := format-nonliteral stringop-truncation, \
     DISABLED_WARNINGS_clang := format-nonliteral, \
     LDFLAGS := $(LDFLAGS_JDKLIB) \
         $(call SET_SHARED_LIBRARY_ORIGIN), \
@@ -463,13 +476,25 @@ else
    endif
 
    # hb-ft.cc is not presently needed, and requires freetype 2.4.2 or later.
-   LIBFONTMANAGER_EXCLUDE_FILES += libharfbuzz/hb-ft.cc
+   # hb-subset and hb-style APIs are not needed, excluded to cut on compilation time.
+   LIBFONTMANAGER_EXCLUDE_FILES += hb-ft.cc hb-subset-cff-common.cc \
+       hb-subset-cff1.cc hb-subset-cff2.cc hb-subset-input.cc hb-subset-plan.cc \
+       hb-subset.cc hb-subset-instancer-solver.cc gsubgpos-context.cc hb-style.cc
+
+   # list of disabled warnings and the compilers for which it was specifically added.
+   # array-bounds         -> GCC 12 on Alpine Linux
+   # parentheses          -> GCC 6
+   # range-loop-analysis  -> clang on Xcode12
 
    HARFBUZZ_DISABLED_WARNINGS_gcc := missing-field-initializers strict-aliasing \
-       unused-result array-bounds
+       unused-result array-bounds parentheses dangling-pointer
    # noexcept-type required for GCC 7 builds. Not required for GCC 8+.
    # expansion-to-defined required for GCC 9 builds. Not required for GCC 10+.
-   HARFBUZZ_DISABLED_WARNINGS_CXX_gcc := class-memaccess noexcept-type expansion-to-defined dangling-reference
+   # maybe-uninitialized required for GCC 8 builds. Not required for GCC 9+.
+   # calloc-transposed-args required for GCC 14 builds. (fixed upstream in Harfbuzz 032c931e1c0cfb20f18e5acb8ba005775242bd92)
+   HARFBUZZ_DISABLED_WARNINGS_CXX_gcc := class-memaccess noexcept-type \
+       expansion-to-defined dangling-reference maybe-uninitialized \
+       calloc-transposed-args
    HARFBUZZ_DISABLED_WARNINGS_clang := missing-field-initializers range-loop-analysis
    HARFBUZZ_DISABLED_WARNINGS_microsoft := 4267 4244
 
@@ -764,14 +789,14 @@ ifeq ($(ENABLE_HEADLESS_ONLY), false)
       EXCLUDE_SRC_PATTERNS := $(LIBSPLASHSCREEN_EXCLUDE_SRC_PATTERNS), \
       EXCLUDE_FILES := imageioJPEG.c jpegdecoder.c pngtest.c, \
       EXCLUDES := $(LIBSPLASHSCREEN_EXCLUDES), \
-      OPTIMIZATION := LOW, \
+      OPTIMIZATION := SIZE, \
       CFLAGS := $(CFLAGS_JDKLIB) $(LIBSPLASHSCREEN_CFLAGS) \
           $(GIFLIB_CFLAGS) $(LIBJPEG_CFLAGS) $(PNG_CFLAGS) $(LIBZ_CFLAGS), \
       EXTRA_HEADER_DIRS := $(LIBSPLASHSCREEN_HEADER_DIRS), \
       DISABLED_WARNINGS_gcc_dgif_lib.c := sign-compare, \
       DISABLED_WARNINGS_gcc_jcmaster.c := implicit-fallthrough, \
       DISABLED_WARNINGS_gcc_jdphuff.c := shift-negative-value, \
-      DISABLED_WARNINGS_gcc_png.c := maybe-uninitialized, \
+      DISABLED_WARNINGS_gcc_png.c := maybe-uninitialized unused-function, \
       DISABLED_WARNINGS_gcc_pngerror.c := maybe-uninitialized, \
       DISABLED_WARNINGS_gcc_splashscreen_gfx_impl.c := implicit-fallthrough maybe-uninitialized, \
       DISABLED_WARNINGS_gcc_splashscreen_impl.c := implicit-fallthrough sign-compare unused-function, \
@@ -779,6 +804,7 @@ ifeq ($(ENABLE_HEADLESS_ONLY), false)
       DISABLED_WARNINGS_clang := deprecated-non-prototype, \
       DISABLED_WARNINGS_clang_dgif_lib.c := sign-compare, \
       DISABLED_WARNINGS_clang_gzwrite.c := format-nonliteral, \
+      DISABLED_WARNINGS_clang_png.c := unused-function, \
       DISABLED_WARNINGS_clang_splashscreen_impl.c := sign-compare, \
       DISABLED_WARNINGS_clang_splashscreen_png.c := incompatible-pointer-types, \
       DISABLED_WARNINGS_clang_splashscreen_sys.m := deprecated-declarations, \

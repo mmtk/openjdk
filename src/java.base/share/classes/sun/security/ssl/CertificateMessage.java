@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -382,7 +382,7 @@ final class CertificateMessage {
                         ClientAuthType.CLIENT_AUTH_REQUESTED) {
                     // unexpected or require client authentication
                     throw shc.conContext.fatal(Alert.BAD_CERTIFICATE,
-                        "Empty server certificate chain");
+                        "Empty client certificate chain");
                 } else {
                     return;
                 }
@@ -399,7 +399,7 @@ final class CertificateMessage {
                 }
             } catch (CertificateException ce) {
                 throw shc.conContext.fatal(Alert.BAD_CERTIFICATE,
-                    "Failed to parse server certificates", ce);
+                    "Failed to parse client certificates", ce);
             }
 
             checkClientCerts(shc, x509Certs);
@@ -1129,6 +1129,15 @@ final class CertificateMessage {
 
             // clean up this consumer
             hc.handshakeConsumers.remove(SSLHandshake.CERTIFICATE.id);
+
+            // Ensure that the Certificate message has not been sent w/o
+            // an EncryptedExtensions preceding
+            if (hc.handshakeConsumers.containsKey(
+                    SSLHandshake.ENCRYPTED_EXTENSIONS.id)) {
+                throw hc.conContext.fatal(Alert.UNEXPECTED_MESSAGE,
+                                           "Unexpected Certificate handshake message");
+            }
+
             T13CertificateMessage cm = new T13CertificateMessage(hc, message);
             if (hc.sslConfig.isClientMode) {
                 if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake")) {
@@ -1216,7 +1225,7 @@ final class CertificateMessage {
                 }
             } catch (CertificateException ce) {
                 throw shc.conContext.fatal(Alert.BAD_CERTIFICATE,
-                    "Failed to parse server certificates", ce);
+                    "Failed to parse client certificates", ce);
             }
 
             // find out the types of client authentication used

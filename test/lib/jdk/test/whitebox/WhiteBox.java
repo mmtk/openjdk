@@ -140,6 +140,12 @@ public class WhiteBox {
     return getConstantPoolCacheLength0(aClass);
   }
 
+  private native Object[] getResolvedReferences0(Class<?> aClass);
+  public         Object[] getResolvedReferences(Class<?> aClass) {
+    Objects.requireNonNull(aClass);
+    return getResolvedReferences0(aClass);
+  }
+
   private native int remapInstructionOperandFromCPCache0(Class<?> aClass, int index);
   public         int remapInstructionOperandFromCPCache(Class<?> aClass, int index) {
     Objects.requireNonNull(aClass);
@@ -288,6 +294,10 @@ public class WhiteBox {
   public native long NMTNewArena(long initSize);
   public native void NMTFreeArena(long arena);
   public native void NMTArenaMalloc(long arena, long size);
+
+  // Sanitizers
+  public native boolean isAsanEnabled();
+  public native boolean isUbsanEnabled();
 
   // Compiler
   public native boolean isC2OrJVMCIIncluded();
@@ -486,6 +496,8 @@ public class WhiteBox {
   public native long incMetaspaceCapacityUntilGC(long increment);
   public native long metaspaceCapacityUntilGC();
   public native long metaspaceSharedRegionAlignment();
+
+  public native void cleanMetaspaces();
 
   // Metaspace Arena Tests
   public native long createMetaspaceTestContext(long commit_limit, long reserve_limit);
@@ -721,6 +733,7 @@ public class WhiteBox {
   public native void printOsInfo();
   public native long hostPhysicalMemory();
   public native long hostPhysicalSwap();
+  public native int hostCPUs();
 
   // Decoder
   public native void disableElfSectionCache();
@@ -751,4 +764,6 @@ public class WhiteBox {
   public native void unlockCritical();
 
   public native boolean setVirtualThreadsNotifyJvmtiMode(boolean enabled);
+
+  public native void preTouchMemory(long addr, long size);
 }

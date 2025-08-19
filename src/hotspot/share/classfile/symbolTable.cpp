@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -37,6 +37,7 @@
 #include "runtime/atomic.hpp"
 #include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/timerTrace.hpp"
+#include "runtime/trimNativeHeap.hpp"
 #include "services/diagnosticCommand.hpp"
 #include "utilities/concurrentHashTable.inline.hpp"
 #include "utilities/concurrentHashTableTasks.inline.hpp"
@@ -336,7 +337,23 @@ Symbol* SymbolTable::lookup_common(const char* name,
   return sym;
 }
 
+// Symbols should represent entities from the constant pool that are
+// limited to <64K in length, but usage errors creep in allowing Symbols
+// to be used for arbitrary strings. For debug builds we will assert if
+// a string is too long, whereas product builds will truncate it.
+static int check_length(const char* name, int len) {
+  assert(len <= Symbol::max_length(),
+         "String length %d exceeds the maximum Symbol length of %d", len, Symbol::max_length());
+  if (len > Symbol::max_length()) {
+    warning("A string \"%.80s ... %.80s\" exceeds the maximum Symbol "
+            "length of %d and has been truncated", name, (name + len - 80), Symbol::max_length());
+    len = Symbol::max_length();
+  }
+  return len;
+}
+
 Symbol* SymbolTable::new_symbol(const char* name, int len) {
+  len = check_length(name, len);
   unsigned int hash = hash_symbol(name, len, _alt_hash);
   Symbol* sym = lookup_common(name, len, hash);
   if (sym == nullptr) {
@@ -352,6 +369,7 @@ Symbol* SymbolTable::new_symbol(const Symbol* sym, int begin, int end) {
   assert(sym->refcount() != 0, "require a valid symbol");
   const char* name = (const char*)sym->base() + begin;
   int len = end - begin;
+  assert(len <= Symbol::max_length(), "sanity");
   unsigned int hash = hash_symbol(name, len, _alt_hash);
   Symbol* found = lookup_common(name, len, hash);
   if (found == nullptr) {
@@ -371,7 +389,11 @@ public:
   uintx get_hash() const {
     return _hash;
   }
-  bool equals(Symbol* value, bool* is_dead) {
+  // Note: When equals() returns "true", the symbol's refcount is incremented. This is
+  // needed to ensure that the symbol is kept alive before equals() returns to the caller,
+  // so that another thread cannot clean the symbol up concurrently. The caller is
+  // responsible for decrementing the refcount, when the symbol is no longer needed.
+  bool equals(Symbol* value) {
     assert(value != nullptr, "expected valid value");
     Symbol *sym = value;
     if (sym->equals(_str, _len)) {
@@ -380,13 +402,14 @@ public:
         return true;
       } else {
         assert(sym->refcount() == 0, "expected dead symbol");
-        *is_dead = true;
         return false;
       }
     } else {
-      *is_dead = (sym->refcount() == 0);
       return false;
     }
+  }
+  bool is_dead(Symbol* value) {
+    return value->refcount() == 0;
   }
 };
 
@@ -463,6 +486,7 @@ void SymbolTable::new_symbols(ClassLoaderData* loader_data, const constantPoolHa
   for (int i = 0; i < names_count; i++) {
     const char *name = names[i];
     int len = lengths[i];
+    assert(len <= Symbol::max_length(), "must be - these come from the constant pool");
     unsigned int hash = hashValues[i];
     assert(lookup_shared(name, len, hash) == nullptr, "must have checked already");
     Symbol* sym = do_add_if_needed(name, len, hash, is_permanent);
@@ -472,6 +496,7 @@ void SymbolTable::new_symbols(ClassLoaderData* loader_data, const constantPoolHa
 }
 
 Symbol* SymbolTable::do_add_if_needed(const char* name, int len, uintx hash, bool is_permanent) {
+  assert(len <= Symbol::max_length(), "caller should have ensured this");
   SymbolTableLookup lookup(name, len, hash);
   SymbolTableGet stg;
   bool clean_hint = false;
@@ -520,7 +545,7 @@ Symbol* SymbolTable::do_add_if_needed(const char* name, int len, uintx hash, boo
 
 Symbol* SymbolTable::new_permanent_symbol(const char* name) {
   unsigned int hash = 0;
-  int len = (int)strlen(name);
+  int len = check_length(name, (int)strlen(name));
   Symbol* sym = SymbolTable::lookup_only(name, len, hash);
   if (sym == nullptr) {
     sym = do_add_if_needed(name, len, hash, /* is_permanent */ true);
@@ -737,6 +762,7 @@ void SymbolTable::clean_dead_entries(JavaThread* jt) {
 
   SymbolTableDeleteCheck stdc;
   SymbolTableDoDelete stdd;
+  NativeHeapTrimmer::SuspendMark sm("symboltable");
   {
     TraceTime timer("Clean", TRACETIME_LOG(Debug, symboltable, perf));
     while (bdt.do_task(jt, stdc, stdd)) {

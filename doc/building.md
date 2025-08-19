@@ -366,12 +366,9 @@ To use clang instead of gcc on Linux, use `--with-toolchain-type=clang`.
 
 The oldest supported version of Xcode is 8.
 
-You will need the Xcode command line developer tools to be able to build
-the JDK. (Actually, *only* the command line tools are needed, not the IDE.)
-The simplest way to install these is to run:
-```
-xcode-select --install
-```
+You will need to download Xcode either from the App Store or specific versions
+can be easily located via the [Xcode Releases](https://xcodereleases.com)
+website.
 
 When updating Xcode, it is advisable to keep an older version for building the JDK.
 To use a specific version of Xcode you have multiple options:
@@ -884,11 +881,11 @@ Download the latest `.tar.gz` file, unpack it, and point `--with-jtreg` to the
 Building of Hotspot Gtest suite requires the source code of Google
 Test framework.  The top directory, which contains both `googletest`
 and `googlemock` directories, should be specified via `--with-gtest`.
-The minimum supported version of Google Test is 1.13.0, whose source
+The minimum supported version of Google Test is 1.14.0, whose source
 code can be obtained:
 
- * by downloading and unpacking the source bundle from [here](https://github.com/google/googletest/releases/tag/v1.13.0)
- * or by checking out `v1.13.0` tag of `googletest` project: `git clone -b v1.13.0 https://github.com/google/googletest`
+ * by downloading and unpacking the source bundle from [here](https://github.com/google/googletest/releases/tag/v1.14.0)
+ * or by checking out `v1.14.0` tag of `googletest` project: `git clone -b v1.14.0 https://github.com/google/googletest`
 
 To execute the most basic tests (tier 1), use:
 ```

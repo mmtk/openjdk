@@ -497,7 +497,7 @@ int SharedRuntime::java_calling_convention(const BasicType *sig_bt,
 
   uint int_args = 0;
   uint fp_args = 0;
-  uint stk_args = 0; // inc by 2 each time
+  uint stk_args = 0;
 
   for (int i = 0; i < total_args_passed; i++) {
     switch (sig_bt[i]) {
@@ -509,8 +509,9 @@ int SharedRuntime::java_calling_convention(const BasicType *sig_bt,
       if (int_args < Argument::n_int_register_parameters_j) {
         regs[i].set1(INT_ArgReg[int_args++]->as_VMReg());
       } else {
+        stk_args = align_up(stk_args, 2);
         regs[i].set1(VMRegImpl::stack2reg(stk_args));
-        stk_args += 2;
+        stk_args += 1;
       }
       break;
     case T_VOID:
@@ -527,6 +528,7 @@ int SharedRuntime::java_calling_convention(const BasicType *sig_bt,
       if (int_args < Argument::n_int_register_parameters_j) {
         regs[i].set2(INT_ArgReg[int_args++]->as_VMReg());
       } else {
+        stk_args = align_up(stk_args, 2);
         regs[i].set2(VMRegImpl::stack2reg(stk_args));
         stk_args += 2;
       }
@@ -535,8 +537,9 @@ int SharedRuntime::java_calling_convention(const BasicType *sig_bt,
       if (fp_args < Argument::n_float_register_parameters_j) {
         regs[i].set1(FP_ArgReg[fp_args++]->as_VMReg());
       } else {
+        stk_args = align_up(stk_args, 2);
         regs[i].set1(VMRegImpl::stack2reg(stk_args));
-        stk_args += 2;
+        stk_args += 1;
       }
       break;
     case T_DOUBLE:
@@ -544,6 +547,7 @@ int SharedRuntime::java_calling_convention(const BasicType *sig_bt,
       if (fp_args < Argument::n_float_register_parameters_j) {
         regs[i].set2(FP_ArgReg[fp_args++]->as_VMReg());
       } else {
+        stk_args = align_up(stk_args, 2);
         regs[i].set2(VMRegImpl::stack2reg(stk_args));
         stk_args += 2;
       }
@@ -554,7 +558,7 @@ int SharedRuntime::java_calling_convention(const BasicType *sig_bt,
     }
   }
 
-  return align_up(stk_args, 2);
+  return stk_args;
 }
 
 // Patch the callers callsite with entry to compiled code if it exists.
@@ -2187,7 +2191,7 @@ nmethod* SharedRuntime::generate_native_wrapper(MacroAssembler* masm,
       assert(LockingMode == LM_LIGHTWEIGHT, "must be");
       // Load object header
       __ movptr(swap_reg, Address(obj_reg, oopDesc::mark_offset_in_bytes()));
-      __ fast_lock_impl(obj_reg, swap_reg, r15_thread, rscratch1, slow_path_lock);
+      __ lightweight_lock(obj_reg, swap_reg, r15_thread, rscratch1, slow_path_lock);
     }
     __ bind(count_mon);
     __ inc_held_monitor_count();
@@ -2331,7 +2335,7 @@ nmethod* SharedRuntime::generate_native_wrapper(MacroAssembler* masm,
       assert(LockingMode == LM_LIGHTWEIGHT, "must be");
       __ movptr(swap_reg, Address(obj_reg, oopDesc::mark_offset_in_bytes()));
       __ andptr(swap_reg, ~(int32_t)markWord::lock_mask_in_place);
-      __ fast_unlock_impl(obj_reg, swap_reg, lock_reg, slow_path_unlock);
+      __ lightweight_unlock(obj_reg, swap_reg, lock_reg, slow_path_unlock);
       __ dec_held_monitor_count();
     }
 

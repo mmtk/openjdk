@@ -115,7 +115,7 @@ void C1_MacroAssembler::lock_object(Register Rmark, Register Roop, Register Rbox
   }
 
   if (LockingMode == LM_LIGHTWEIGHT) {
-    fast_lock(Roop, Rmark, Rscratch, slow_int);
+    lightweight_lock(Roop, Rmark, Rscratch, slow_int);
   } else if (LockingMode == LM_LEGACY) {
     // ... and mark it unlocked.
     ori(Rmark, Rmark, markWord::unlocked_value);
@@ -137,6 +137,8 @@ void C1_MacroAssembler::lock_object(Register Rmark, Register Roop, Register Rbox
              /*check without membar and ldarx first*/true);
     // If compare/exchange succeeded we found an unlocked object and we now have locked it
     // hence we are done.
+  } else {
+    assert(false, "Unhandled LockingMode:%d", LockingMode);
   }
   b(done);
 
@@ -181,7 +183,7 @@ void C1_MacroAssembler::unlock_object(Register Rmark, Register Roop, Register Rb
     ld(Rmark, oopDesc::mark_offset_in_bytes(), Roop);
     andi_(R0, Rmark, markWord::monitor_value);
     bne(CCR0, slow_int);
-    fast_unlock(Roop, Rmark, slow_int);
+    lightweight_unlock(Roop, Rmark, slow_int);
   } else if (LockingMode == LM_LEGACY) {
     // Check if it is still a light weight lock, this is is true if we see
     // the stack address of the basicLock in the markWord of the object.
@@ -194,6 +196,8 @@ void C1_MacroAssembler::unlock_object(Register Rmark, Register Roop, Register Rb
              MacroAssembler::cmpxchgx_hint_release_lock(),
              noreg,
              &slow_int);
+  } else {
+    assert(false, "Unhandled LockingMode:%d", LockingMode);
   }
   b(done);
   bind(slow_int);

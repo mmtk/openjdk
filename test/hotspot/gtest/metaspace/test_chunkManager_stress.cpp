@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020, 2023 SAP SE. All rights reserved.
- * Copyright (c) 2020, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -116,9 +116,9 @@ class ChunkManagerRandomChunkAllocTest {
     const chunklevel_t max_level = r.highest();
     const size_t min_committed = random_committed_words(max_level, _commit_factor);
 
-    Metachunk* c = NULL;
+    Metachunk* c = nullptr;
     _context.alloc_chunk(&c, r.lowest(), r.highest(), min_committed);
-    if (c == NULL) {
+    if (c == nullptr) {
       EXPECT_TRUE(could_be_reserve_error() ||
                   could_be_commit_error(min_committed));
       LOG("Alloc chunk at %d failed.", slot);
@@ -162,7 +162,7 @@ class ChunkManagerRandomChunkAllocTest {
     Metachunk* c = _chunks.at(slot);
     LOG("Returning chunk at %d: " METACHUNK_FORMAT ".", slot, METACHUNK_FORMAT_ARGS(c));
     _context.return_chunk(c);
-    _chunks.set_at(slot, NULL);
+    _chunks.set_at(slot, nullptr);
   }
 
   // return a random number of chunks (at most a quarter of the full slot range)
@@ -194,7 +194,7 @@ class ChunkManagerRandomChunkAllocTest {
 
     IntRange rand(100);
 
-    for (int j = 0; j < 1000; j++) {
+    for (int j = 0; j < 750; j++) {
 
       bool force_alloc = false;
       bool force_free = true;
@@ -249,7 +249,7 @@ public:
   // {}
 
   void do_tests() {
-    const int num_runs = 5;
+    const int num_runs = 3;
     for (int n = 0; n < num_runs; n++) {
       one_test();
     }

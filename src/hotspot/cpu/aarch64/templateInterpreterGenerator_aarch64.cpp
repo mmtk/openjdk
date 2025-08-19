@@ -26,6 +26,7 @@
 #include "precompiled.hpp"
 #include "asm/macroAssembler.inline.hpp"
 #include "classfile/javaClasses.hpp"
+#include "compiler/disassembler.hpp"
 #include "compiler/compiler_globals.hpp"
 #include "gc/shared/barrierSetAssembler.hpp"
 #include "interpreter/bytecodeHistogram.hpp"
@@ -63,7 +64,7 @@
 // Max size with JVMTI
 int TemplateInterpreter::InterpreterCodeSize = 200 * 1024;
 
-#define __ _masm->
+#define __ Disassembler::hook<InterpreterMacroAssembler>(__FILE__, __LINE__, _masm)->
 
 //-----------------------------------------------------------------------------
 
@@ -688,7 +689,7 @@ void TemplateInterpreterGenerator::generate_stack_overflow_check(void) {
 
   // monitor entry size: see picture of stack set
   // (generate_method_entry) and frame_amd64.hpp
-  const int entry_size = frame::interpreter_frame_monitor_size() * wordSize;
+  const int entry_size = frame::interpreter_frame_monitor_size_in_bytes();
 
   // total overhead size: entry_size + (saved rbp through expr stack
   // bottom).  be sure to change this if you add/subtract anything
@@ -769,7 +770,7 @@ void TemplateInterpreterGenerator::lock_method() {
   const Address monitor_block_top(
         rfp,
         frame::interpreter_frame_monitor_block_top_offset * wordSize);
-  const int entry_size = frame::interpreter_frame_monitor_size() * wordSize;
+  const int entry_size = frame::interpreter_frame_monitor_size_in_bytes();
 
 #ifdef ASSERT
   {
@@ -1366,6 +1367,9 @@ address TemplateInterpreterGenerator::generate_native_entry(bool synchronized) {
   __ get_method(rmethod);
   // result potentially in r0 or v0
 
+  // Restore cpu control state after JNI call
+  __ restore_cpu_control_state_after_jni(rscratch1, rscratch2);
+
   // make room for the pushes we're about to do
   __ sub(rscratch1, esp, 4 * wordSize);
   __ andr(sp, rscratch1, -16);
@@ -1823,7 +1827,7 @@ void TemplateInterpreterGenerator::generate_throw_exception() {
     Label caller_not_deoptimized;
     __ ldr(c_rarg1, Address(rfp, frame::return_addr_offset * wordSize));
     // This is a return address, so requires authenticating for PAC.
-    __ authenticate_return_address(c_rarg1, rscratch1);
+    __ authenticate_return_address(c_rarg1);
     __ super_call_VM_leaf(CAST_FROM_FN_PTR(address,
                                InterpreterRuntime::interpreter_contains), c_rarg1);
     __ cbnz(r0, caller_not_deoptimized);
@@ -1989,13 +1993,21 @@ void TemplateInterpreterGenerator::set_vtos_entry_points(Template* t,
                                                          address& vep) {
   assert(t->is_valid() && t->tos_in() == vtos, "illegal template");
   Label L;
-  aep = __ pc();  __ push_ptr();  __ b(L);
-  fep = __ pc();  __ push_f();    __ b(L);
-  dep = __ pc();  __ push_d();    __ b(L);
-  lep = __ pc();  __ push_l();    __ b(L);
-  bep = cep = sep =
-  iep = __ pc();  __ push_i();
-  vep = __ pc();
+  aep = __ pc();     // atos entry point
+      __ push_ptr();
+      __ b(L);
+  fep = __ pc();     // ftos entry point
+      __ push_f();
+      __ b(L);
+  dep = __ pc();     // dtos entry point
+      __ push_d();
+      __ b(L);
+  lep = __ pc();     // ltos entry point
+      __ push_l();
+      __ b(L);
+  bep = cep = sep = iep = __ pc();     // [bcsi]tos entry point
+      __ push_i();
+  vep = __ pc();     // vtos entry point
   __ bind(L);
   generate_and_dispatch(t);
 }

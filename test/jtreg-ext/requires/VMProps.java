@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -47,9 +47,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import jdk.internal.foreign.CABI;
-
 import jdk.test.whitebox.code.Compiler;
 import jdk.test.whitebox.cpuinfo.CPUInfo;
 import jdk.test.whitebox.gc.GC;
@@ -66,6 +66,9 @@ import jdk.test.lib.Container;
 public class VMProps implements Callable<Map<String, String>> {
     // value known to jtreg as an indicator of error state
     private static final String ERROR_STATE = "__ERROR__";
+
+    private static final String GC_PREFIX = "-XX:+Use";
+    private static final String GC_SUFFIX = "GC";
 
     private static final WhiteBox WB = WhiteBox.getWhiteBox();
 
@@ -102,6 +105,7 @@ public class VMProps implements Callable<Map<String, String>> {
         map.put("vm.simpleArch", this::vmArch);
         map.put("vm.debug", this::vmDebug);
         map.put("vm.jvmci", this::vmJvmci);
+        map.put("vm.jvmci.enabled", this::vmJvmciEnabled);
         map.put("vm.emulatedClient", this::vmEmulatedClient);
         // vm.hasSA is "true" if the VM contains the serviceability agent
         // and jhsdb.
@@ -125,7 +129,10 @@ public class VMProps implements Callable<Map<String, String>> {
         map.put("vm.compiler1.enabled", this::isCompiler1Enabled);
         map.put("vm.compiler2.enabled", this::isCompiler2Enabled);
         map.put("docker.support", this::dockerSupport);
+        map.put("systemd.support", this::systemdSupport);
         map.put("vm.musl", this::isMusl);
+        map.put("vm.asan", this::isAsanEnabled);
+        map.put("vm.ubsan", this::isUbsanEnabled);
         map.put("release.implementor", this::implementor);
         map.put("jdk.containerized", this::jdkContainerized);
         map.put("vm.flagless", this::isFlagless);
@@ -266,6 +273,20 @@ public class VMProps implements Callable<Map<String, String>> {
         return "true";
     }
 
+
+    /**
+     * @return true if JVMCI is enabled
+     */
+    protected String vmJvmciEnabled() {
+        // builds with jvmci have this flag
+        if ("false".equals(vmJvmci())) {
+            return "false";
+        }
+
+        return "" + Compiler.isJVMCIEnabled();
+    }
+
+
     /**
      * @return true if VM runs in emulated-client mode and false otherwise.
      */
@@ -329,8 +350,6 @@ public class VMProps implements Callable<Map<String, String>> {
             return;
         }
 
-        String GC_PREFIX  = "-XX:+Use";
-        String GC_SUFFIX  = "GC";
         String jtropts = System.getProperty("test.cds.runtime.options");
         if (jtropts != null) {
             for (String opt : jtropts.split(",")) {
@@ -364,7 +383,9 @@ public class VMProps implements Callable<Map<String, String>> {
         vmOptFinalFlag(map, "CriticalJNINatives");
         vmOptFinalFlag(map, "EnableJVMCI");
         vmOptFinalFlag(map, "EliminateAllocations");
+        vmOptFinalFlag(map, "UnlockExperimentalVMOptions");
         vmOptFinalFlag(map, "UseCompressedOops");
+        vmOptFinalFlag(map, "UseLargePages");
         vmOptFinalFlag(map, "UseVectorizedMismatchIntrinsic");
         vmOptFinalFlag(map, "UseVtableBasedCHA");
         vmOptFinalFlag(map, "ZGenerational");
@@ -441,7 +462,31 @@ public class VMProps implements Callable<Map<String, String>> {
      * @return true if this VM can write Java heap objects into the CDS archive
      */
     protected String vmCDSCanWriteArchivedJavaHeap() {
-        return "" + ("true".equals(vmCDS()) && WB.canWriteJavaHeapArchive());
+        return "" + ("true".equals(vmCDS()) && WB.canWriteJavaHeapArchive()
+                     && isCDSRuntimeOptionsCompatible());
+    }
+
+    /**
+     * @return true if the VM options specified via the "test.cds.runtime.options"
+     * property is compatible with writing Java heap objects into the CDS archive
+     */
+    protected boolean isCDSRuntimeOptionsCompatible() {
+        String jtropts = System.getProperty("test.cds.runtime.options");
+        if (jtropts == null) {
+            return true;
+        }
+        String CCP_DISABLED = "-XX:-UseCompressedClassPointers";
+        String G1GC_ENABLED = "-XX:+UseG1GC";
+        for (String opt : jtropts.split(",")) {
+            if (opt.equals(CCP_DISABLED)) {
+                return false;
+            }
+            if (opt.startsWith(GC_PREFIX) && opt.endsWith(GC_SUFFIX) &&
+                !opt.equals(G1GC_ENABLED)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -519,13 +564,34 @@ public class VMProps implements Callable<Map<String, String>> {
 
         if (isSupported) {
            try {
-              isSupported = checkDockerSupport();
+              isSupported = checkProgramSupport("checkDockerSupport()", Container.ENGINE_COMMAND);
            } catch (Exception e) {
               isSupported = false;
            }
          }
 
         log("dockerSupport(): returning isSupported = " + isSupported);
+        return "" + isSupported;
+    }
+
+    /**
+     * A simple check for systemd support
+     *
+     * @return true if systemd is supported in a given environment
+     */
+    protected String systemdSupport() {
+        log("Entering systemdSupport()");
+
+        boolean isSupported = Platform.isLinux();
+        if (isSupported) {
+           try {
+              isSupported = checkProgramSupport("checkSystemdSupport()", "systemd-run");
+           } catch (Exception e) {
+              isSupported = false;
+           }
+         }
+
+        log("systemdSupport(): returning isSupported = " + isSupported);
         return "" + isSupported;
     }
 
@@ -563,16 +629,17 @@ public class VMProps implements Callable<Map<String, String>> {
                 });
     }
 
-    private boolean checkDockerSupport() throws IOException, InterruptedException {
-        log("checkDockerSupport(): entering");
-        ProcessBuilder pb = new ProcessBuilder(Container.ENGINE_COMMAND, "ps");
-        Map<String, String> logFileNames = redirectOutputToLogFile("checkDockerSupport(): <container> ps",
-                                                      pb, "container-ps");
+    private boolean checkProgramSupport(String logString, String cmd) throws IOException, InterruptedException {
+        log(logString + ": entering");
+        ProcessBuilder pb = new ProcessBuilder("which", cmd);
+        Map<String, String> logFileNames =
+            redirectOutputToLogFile(logString + ": which " + cmd,
+                                                      pb, "which-cmd");
         Process p = pb.start();
         p.waitFor(10, TimeUnit.SECONDS);
         int exitValue = p.exitValue();
 
-        log(String.format("checkDockerSupport(): exitValue = %s, pid = %s", exitValue, p.pid()));
+        log(String.format("%s: exitValue = %s, pid = %s", logString, exitValue, p.pid()));
         if (exitValue != 0) {
             printLogfileContent(logFileNames);
         }
@@ -587,6 +654,15 @@ public class VMProps implements Callable<Map<String, String>> {
      */
     protected String isMusl() {
         return Boolean.toString(WB.getLibcName().contains("musl"));
+    }
+
+    // Sanitizer support
+    protected String isAsanEnabled() {
+        return "" + WB.isAsanEnabled();
+    }
+
+    protected String isUbsanEnabled() {
+        return "" + WB.isUbsanEnabled();
     }
 
     private String implementor() {
@@ -614,19 +690,18 @@ public class VMProps implements Callable<Map<String, String>> {
      * Checks if we are in <i>almost</i> out-of-box configuration, i.e. the flags
      * which JVM is started with don't affect its behavior "significantly".
      * {@code TEST_VM_FLAGLESS} enviroment variable can be used to force this
-     * method to return true and allow any flags.
+     * method to return true or false and allow or reject any flags.
      *
      * @return true if there are no JVM flags
      */
     private String isFlagless() {
         boolean result = true;
-        if (System.getenv("TEST_VM_FLAGLESS") != null) {
-            return "" + result;
+        String flagless = System.getenv("TEST_VM_FLAGLESS");
+        if (flagless != null) {
+            return "" + "true".equalsIgnoreCase(flagless);
         }
 
-        List<String> allFlags = new ArrayList<String>();
-        Collections.addAll(allFlags, System.getProperty("test.vm.opts", "").trim().split("\\s+"));
-        Collections.addAll(allFlags, System.getProperty("test.java.opts", "").trim().split("\\s+"));
+        List<String> allFlags = allFlags().toList();
 
         // check -XX flags
         var ignoredXXFlags = Set.of(
@@ -652,21 +727,29 @@ public class VMProps implements Callable<Map<String, String>> {
         // check -X flags
         var ignoredXFlags = Set.of(
                 // default, yet still seen to be explicitly set
-                "mixed"
+                "mixed",
+                // -XmxmNNNm added by run-test framework for non-hotspot tests
+                "mx"
         );
         result &= allFlags.stream()
                           .filter(s -> s.startsWith("-X") && !s.startsWith("-XX:"))
                           // map to names:
-                              // remove -X
-                              .map(s -> s.substring(2))
-                              // remove :.* from flags with values
-                              .map(s -> s.contains(":") ? s.substring(0, s.indexOf(':')) : s)
+                          // remove -X
+                          .map(s -> s.substring(2))
+                          // remove :.* from flags with values
+                          .map(s -> s.contains(":") ? s.substring(0, s.indexOf(':')) : s)
+                          // remove size like 4G, 768m which might be set for non-hotspot tests
+                          .map(s -> s.replaceAll("(\\d+)[mMgGkK]", ""))
                           // skip known-to-be-there flags
                           .filter(s -> !ignoredXFlags.contains(s))
                           .findAny()
                           .isEmpty();
 
         return "" + result;
+    }
+
+    private Stream<String> allFlags() {
+        return Stream.of((System.getProperty("test.vm.opts", "") + " " + System.getProperty("test.java.opts", "")).trim().split("\\s+"));
     }
 
     /*

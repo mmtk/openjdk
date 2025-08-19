@@ -392,14 +392,22 @@ static u4 write_metadata(JfrChunkWriter& chunkwriter) {
   return invoke(wm);
 }
 
-template <typename Instance, void(Instance::*func)()>
-class JfrVMOperation : public VM_Operation {
+class JfrSafepointClearVMOperation : public VM_Operation {
  private:
-  Instance& _instance;
+  JfrRecorderService& _instance;
  public:
-  JfrVMOperation(Instance& instance) : _instance(instance) {}
-  void doit() { (_instance.*func)(); }
-  VMOp_Type type() const { return VMOp_JFRCheckpoint; }
+  JfrSafepointClearVMOperation(JfrRecorderService& instance) : _instance(instance) {}
+  void doit() { _instance.safepoint_clear(); }
+  VMOp_Type type() const { return VMOp_JFRSafepointClear; }
+};
+
+class JfrSafepointWriteVMOperation : public VM_Operation {
+ private:
+  JfrRecorderService& _instance;
+ public:
+  JfrSafepointWriteVMOperation(JfrRecorderService& instance) : _instance(instance) {}
+  void doit() { _instance.safepoint_write(); }
+  VMOp_Type type() const { return VMOp_JFRSafepointWrite; }
 };
 
 JfrRecorderService::JfrRecorderService() :
@@ -468,9 +476,9 @@ void JfrRecorderService::pre_safepoint_clear() {
 }
 
 void JfrRecorderService::invoke_safepoint_clear() {
-  JfrVMOperation<JfrRecorderService, &JfrRecorderService::safepoint_clear> safepoint_task(*this);
+  JfrSafepointClearVMOperation op(*this);
   ThreadInVMfromNative transition(JavaThread::current());
-  VMThread::execute(&safepoint_task);
+  VMThread::execute(&op);
 }
 
 void JfrRecorderService::safepoint_clear() {
@@ -569,16 +577,14 @@ void JfrRecorderService::pre_safepoint_write() {
     ObjectSampleCheckpoint::on_rotation(ObjectSampler::acquire());
   }
   write_storage(_storage, _chunkwriter);
-  if (_stack_trace_repository.is_modified()) {
-    write_stacktrace(_stack_trace_repository, _chunkwriter, false);
-  }
+  write_stacktrace(_stack_trace_repository, _chunkwriter, true);
 }
 
 void JfrRecorderService::invoke_safepoint_write() {
-  JfrVMOperation<JfrRecorderService, &JfrRecorderService::safepoint_write> safepoint_task(*this);
+  JfrSafepointWriteVMOperation op(*this);
   // can safepoint here
   ThreadInVMfromNative transition(JavaThread::current());
-  VMThread::execute(&safepoint_task);
+  VMThread::execute(&op);
 }
 
 void JfrRecorderService::safepoint_write() {

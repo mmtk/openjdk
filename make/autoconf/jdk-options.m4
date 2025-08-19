@@ -190,6 +190,16 @@ AC_DEFUN_ONCE([JDKOPT_SETUP_JDK_OPTIONS],
   fi
   AC_SUBST(INCLUDE_SA)
 
+  # Setup default CDS alignment. On platforms where one build may run on machines with different
+  # page sizes, the JVM choses a compatible alignment to fit all possible page sizes. This slightly
+  # increases archive size.
+  # The only platform having this problem at the moment is Linux on aarch64, which may encounter
+  # three different page sizes: 4K, 64K, and if run on Mac m1 hardware, 16K.
+  COMPATIBLE_CDS_ALIGNMENT_DEFAULT=false
+  if test "x$OPENJDK_TARGET_OS" = "xlinux" && test "x$OPENJDK_TARGET_CPU" = "xaarch64"; then
+    COMPATIBLE_CDS_ALIGNMENT_DEFAULT=auto
+  fi
+
   # Compress jars
   COMPRESS_JARS=false
 
@@ -489,9 +499,15 @@ AC_DEFUN_ONCE([JDKOPT_SETUP_LEAK_SANITIZER],
 #
 AC_DEFUN_ONCE([JDKOPT_SETUP_UNDEFINED_BEHAVIOR_SANITIZER],
 [
+  UTIL_ARG_WITH(NAME: additional-ubsan-checks, TYPE: string,
+      DEFAULT: [],
+      DESC: [Customizes the ubsan checks],
+      OPTIONAL: true)
+
   # GCC reports lots of likely false positives for stringop-truncation and format-overflow.
   # Silence them for now.
-  UBSAN_CHECKS="-fsanitize=undefined -fsanitize=float-divide-by-zero -fno-sanitize=shift-base"
+  UBSAN_CHECKS="-fsanitize=undefined -fsanitize=float-divide-by-zero -fno-sanitize=shift-base -fno-sanitize=alignment \
+      $ADDITIONAL_UBSAN_CHECKS"
   UBSAN_CFLAGS="$UBSAN_CHECKS -Wno-stringop-truncation -Wno-format-overflow -fno-omit-frame-pointer -DUNDEFINED_BEHAVIOR_SANITIZER"
   UBSAN_LDFLAGS="$UBSAN_CHECKS"
   UTIL_ARG_ENABLE(NAME: ubsan, DEFAULT: false, RESULT: UBSAN_ENABLED,
@@ -673,10 +689,10 @@ AC_DEFUN([JDKOPT_ENABLE_DISABLE_CDS_ARCHIVE],
 #
 AC_DEFUN([JDKOPT_ENABLE_DISABLE_COMPATIBLE_CDS_ALIGNMENT],
 [
-  UTIL_ARG_ENABLE(NAME: compatible-cds-alignment, DEFAULT: false,
+  UTIL_ARG_ENABLE(NAME: compatible-cds-alignment, DEFAULT: $COMPATIBLE_CDS_ALIGNMENT_DEFAULT,
       RESULT: ENABLE_COMPATIBLE_CDS_ALIGNMENT,
       DESC: [enable use alternative compatible cds core region alignment],
-      DEFAULT_DESC: [disabled],
+      DEFAULT_DESC: [disabled except on linux-aarch64],
       CHECKING_MSG: [if compatible cds region alignment enabled],
       CHECK_AVAILABLE: [
         AC_MSG_CHECKING([if CDS archive is available])
@@ -822,6 +838,9 @@ AC_DEFUN([JDKOPT_CHECK_CODESIGN_PARAMS],
   $RM "$CODESIGN_TESTFILE"
   $TOUCH "$CODESIGN_TESTFILE"
   CODESIGN_SUCCESS=false
+
+  $ECHO "check codesign, calling $CODESIGN $PARAMS $CODESIGN_TESTFILE" >&AS_MESSAGE_LOG_FD
+
   eval \"$CODESIGN\" $PARAMS \"$CODESIGN_TESTFILE\" 2>&AS_MESSAGE_LOG_FD \
       >&AS_MESSAGE_LOG_FD && CODESIGN_SUCCESS=true
   $RM "$CODESIGN_TESTFILE"

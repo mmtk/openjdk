@@ -42,6 +42,7 @@
 #include "oops/compressedOops.inline.hpp"
 #include "oops/oop.inline.hpp"
 #include "prims/jvmtiAgent.hpp"
+#include "prims/jvmtiAgentList.hpp"
 #include "prims/jvm_misc.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/atomic.hpp"
@@ -73,6 +74,7 @@
 #include "utilities/count_trailing_zeros.hpp"
 #include "utilities/defaultStream.hpp"
 #include "utilities/events.hpp"
+#include "utilities/macros.hpp"
 #include "utilities/powerOfTwo.hpp"
 
 #ifndef _WINDOWS
@@ -928,13 +930,63 @@ bool os::print_function_and_library_name(outputStream* st,
   return have_function_name || have_library_name;
 }
 
-ATTRIBUTE_NO_ASAN static void print_hex_readable_pointer(outputStream* st, address p,
-                                                         int unitsize) {
-  switch (unitsize) {
-    case 1: st->print("%02x", *(u1*)p); break;
-    case 2: st->print("%04x", *(u2*)p); break;
-    case 4: st->print("%08x", *(u4*)p); break;
-    case 8: st->print("%016" FORMAT64_MODIFIER "x", *(u8*)p); break;
+ATTRIBUTE_NO_ASAN static bool read_safely_from(intptr_t* p, intptr_t* result) {
+  const intptr_t errval = 0x1717;
+  intptr_t i = SafeFetchN(p, errval);
+  if (i == errval) {
+    i = SafeFetchN(p, ~errval);
+    if (i == ~errval) {
+      return false;
+    }
+  }
+  (*result) = i;
+  return true;
+}
+
+static void print_hex_location(outputStream* st, address p, int unitsize) {
+  assert(is_aligned(p, unitsize), "Unaligned");
+  address pa = align_down(p, sizeof(intptr_t));
+#ifndef _LP64
+  // Special handling for printing qwords on 32-bit platforms
+  if (unitsize == 8) {
+    intptr_t i1, i2;
+    if (read_safely_from((intptr_t*)pa, &i1) &&
+        read_safely_from((intptr_t*)pa + 1, &i2)) {
+      const uint64_t value =
+        LITTLE_ENDIAN_ONLY((((uint64_t)i2) << 32) | i1)
+        BIG_ENDIAN_ONLY((((uint64_t)i1) << 32) | i2);
+      st->print("%016" FORMAT64_MODIFIER "x", value);
+    } else {
+      st->print_raw("????????????????");
+    }
+    return;
+  }
+#endif // 32-bit, qwords
+  intptr_t i = 0;
+  if (read_safely_from((intptr_t*)pa, &i)) {
+    // bytes:   CA FE BA BE DE AD C0 DE
+    // bytoff:   0  1  2  3  4  5  6  7
+    // LE bits:  0  8 16 24 32 40 48 56
+    // BE bits: 56 48 40 32 24 16  8  0
+    const int offset = (int)(p - (address)pa);
+    const int bitoffset =
+      LITTLE_ENDIAN_ONLY(offset * BitsPerByte)
+      BIG_ENDIAN_ONLY((int)((sizeof(intptr_t) - unitsize - offset) * BitsPerByte));
+    const int bitfieldsize = unitsize * BitsPerByte;
+    intptr_t value = bitfield(i, bitoffset, bitfieldsize);
+    switch (unitsize) {
+      case 1: st->print("%02x", (u1)value); break;
+      case 2: st->print("%04x", (u2)value); break;
+      case 4: st->print("%08x", (u4)value); break;
+      case 8: st->print("%016" FORMAT64_MODIFIER "x", (u8)value); break;
+    }
+  } else {
+    switch (unitsize) {
+      case 1: st->print_raw("??"); break;
+      case 2: st->print_raw("????"); break;
+      case 4: st->print_raw("????????"); break;
+      case 8: st->print_raw("????????????????"); break;
+    }
   }
 }
 
@@ -955,11 +1007,7 @@ void os::print_hex_dump(outputStream* st, address start, address end, int unitsi
   // Print out the addresses as if we were starting from logical_start.
   st->print(PTR_FORMAT ":   ", p2i(logical_p));
   while (p < end) {
-    if (is_readable_pointer(p)) {
-      print_hex_readable_pointer(st, p, unitsize);
-    } else {
-      st->print("%*.*s", 2*unitsize, 2*unitsize, "????????????????");
-    }
+    print_hex_location(st, p, unitsize);
     p += unitsize;
     logical_p += unitsize;
     cols++;
@@ -980,6 +1028,26 @@ void os::print_dhm(outputStream* st, const char* startStr, long sec) {
   long minutes = (sec/60) - (days * 1440) - (hours * 60);
   if (startStr == nullptr) startStr = "";
   st->print_cr("%s %ld days %ld:%02ld hours", startStr, days, hours, minutes);
+}
+
+void os::print_tos_pc(outputStream* st, const void* context) {
+  if (context == nullptr) return;
+
+  // First of all, carefully determine sp without inspecting memory near pc.
+  // See comment below.
+  intptr_t* sp = nullptr;
+  fetch_frame_from_context(context, &sp, nullptr);
+  print_tos(st, (address)sp);
+  st->cr();
+
+  // Note: it may be unsafe to inspect memory near pc. For example, pc may
+  // point to garbage if entry point in an nmethod is corrupted. Leave
+  // this at the end, and hope for the best.
+  // This version of fetch_frame_from_context finds the caller pc if the actual
+  // one is bad.
+  address pc = fetch_frame_from_context(context).pc();
+  print_instructions(st, pc);
+  st->cr();
 }
 
 void os::print_tos(outputStream* st, address sp) {
@@ -1007,6 +1075,31 @@ void os::print_environment_variables(outputStream* st, const char** env_list) {
       }
     }
   }
+}
+
+void os::print_jvmti_agent_info(outputStream* st) {
+#if INCLUDE_JVMTI
+  const JvmtiAgentList::Iterator it = JvmtiAgentList::all();
+  if (it.has_next()) {
+    st->print_cr("JVMTI agents:");
+  } else {
+    st->print_cr("JVMTI agents: none");
+  }
+  while (it.has_next()) {
+    const JvmtiAgent* agent = it.next();
+    if (agent != nullptr) {
+      const char* dyninfo = agent->is_dynamic() ? "dynamic " : "";
+      const char* instrumentinfo = agent->is_instrument_lib() ? "instrumentlib " : "";
+      const char* loadinfo = agent->is_loaded() ? "loaded" : "not loaded";
+      const char* initinfo = agent->is_initialized() ? "initialized" : "not initialized";
+      const char* optionsinfo = agent->options();
+      const char* pathinfo = agent->os_lib_path();
+      if (optionsinfo == nullptr) optionsinfo = "none";
+      if (pathinfo == nullptr) pathinfo = "none";
+      st->print_cr("%s path:%s, %s, %s, %s%soptions:%s", agent->name(), pathinfo, loadinfo, initinfo, dyninfo, instrumentinfo, optionsinfo);
+    }
+  }
+#endif
 }
 
 void os::print_register_info(outputStream* st, const void* context) {
@@ -1074,8 +1167,7 @@ void os::print_date_and_time(outputStream *st, char* buf, size_t buflen) {
   if (localtime_pd(&tloc, &tz) != nullptr) {
     wchar_t w_buf[80];
     size_t n = ::wcsftime(w_buf, 80, L"%Z", &tz);
-    if (n > 0) {
-      ::wcstombs(buf, w_buf, buflen);
+    if (n > 0 && ::wcstombs(buf, w_buf, buflen) != (size_t)-1) {
       st->print("Time: %s %s", timestring, buf);
     } else {
       st->print("Time: %s", timestring);
@@ -1143,6 +1235,8 @@ void os::print_location(outputStream* st, intptr_t x, bool verbose) {
   if (Universe::heap()->print_location(st, addr)) {
     return;
   }
+
+#if !INCLUDE_ASAN
 
   bool accessible = is_readable_pointer(addr);
 
@@ -1230,7 +1324,10 @@ void os::print_location(outputStream* st, intptr_t x, bool verbose) {
     return;
   }
 
+#endif // !INCLUDE_ASAN
+
   st->print_cr(INTPTR_FORMAT " is an unknown value", p2i(addr));
+
 }
 
 bool is_pointer_bad(intptr_t* ptr) {
@@ -1375,6 +1472,56 @@ bool os::set_boot_path(char fileSep, char pathSep) {
   return false;
 }
 
+static char* _image_release_file_content = nullptr;
+
+void os::read_image_release_file() {
+  assert(_image_release_file_content == nullptr, "release file content must not be already set");
+  const char* home = Arguments::get_java_home();
+  stringStream ss;
+  ss.print("%s/release", home);
+
+  FILE* file = fopen(ss.base(), "rb");
+  if (file == nullptr) {
+    return;
+  }
+  fseek(file, 0, SEEK_END);
+  long sz = ftell(file);
+  if (sz == -1) {
+    return;
+  }
+  fseek(file, 0, SEEK_SET);
+
+  char* tmp = (char*) os::malloc(sz + 1, mtInternal);
+  if (tmp == nullptr) {
+    fclose(file);
+    return;
+  }
+
+  size_t elements_read = fread(tmp, 1, sz, file);
+  if (elements_read < (size_t)sz) {
+    tmp[elements_read] = '\0';
+  } else {
+    tmp[sz] = '\0';
+  }
+  // issues with \r in line endings on Windows, so better replace those
+  for (size_t i = 0; i < elements_read; i++) {
+    if (tmp[i] == '\r') {
+      tmp[i] = ' ';
+    }
+  }
+  Atomic::release_store(&_image_release_file_content, tmp);
+  fclose(file);
+}
+
+void os::print_image_release_file(outputStream* st) {
+  char* ifrc = Atomic::load_acquire(&_image_release_file_content);
+  if (ifrc != nullptr) {
+    st->print_cr("%s", ifrc);
+  } else {
+    st->print_cr("<release file has not been read>");
+  }
+}
+
 bool os::file_exists(const char* filename) {
   struct stat statbuf;
   if (filename == nullptr || strlen(filename) == 0) {
@@ -1391,7 +1538,7 @@ bool os::write(int fd, const void *buf, size_t nBytes) {
     if (res == OS_ERR) {
       return false;
     }
-    buf = (void *)((char *)buf + nBytes);
+    buf = (void *)((char *)buf + res);
     nBytes -= res;
   }
 
@@ -1864,14 +2011,18 @@ void os::pretouch_memory(void* start, void* end, size_t page_size) {
     // We're doing concurrent-safe touch and memory state has page
     // granularity, so we can touch anywhere in a page.  Touch at the
     // beginning of each page to simplify iteration.
-    char* cur = static_cast<char*>(align_down(start, page_size));
+    void* first = align_down(start, page_size);
     void* last = align_down(static_cast<char*>(end) - 1, page_size);
-    assert(cur <= last, "invariant");
-    // Iterate from first page through last (inclusive), being careful to
-    // avoid overflow if the last page abuts the end of the address range.
-    for ( ; true; cur += page_size) {
-      Atomic::add(reinterpret_cast<int*>(cur), 0, memory_order_relaxed);
-      if (cur >= last) break;
+    assert(first <= last, "invariant");
+    const size_t pd_page_size = pd_pretouch_memory(first, last, page_size);
+    if (pd_page_size > 0) {
+      // Iterate from first page through last (inclusive), being careful to
+      // avoid overflow if the last page abuts the end of the address range.
+      last = align_down(static_cast<char*>(end) - 1, pd_page_size);
+      for (char* cur = static_cast<char*>(first); /* break */; cur += pd_page_size) {
+        Atomic::add(reinterpret_cast<int*>(cur), 0, memory_order_relaxed);
+        if (cur >= last) break;
+      }
     }
   }
 }

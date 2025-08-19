@@ -633,9 +633,9 @@ public:
 
   static uint cores_per_cpu();
   static uint threads_per_core();
-  static intx L1_line_size();
+  static uint L1_line_size();
 
-  static intx prefetch_data_size()  {
+  static uint prefetch_data_size()  {
     return L1_line_size();
   }
 
@@ -759,6 +759,11 @@ public:
 
   // x86_64 supports fast class initialization checks for static methods.
   static bool supports_fast_class_init_checks() {
+    return LP64_ONLY(true) NOT_LP64(false); // not implemented on x86_32
+  }
+
+  // x86_64 supports secondary supers table
+  constexpr static bool supports_secondary_supers_table() {
     return LP64_ONLY(true) NOT_LP64(false); // not implemented on x86_32
   }
 

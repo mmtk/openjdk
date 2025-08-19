@@ -2707,7 +2707,7 @@ void MacroAssembler::compiler_fast_lock_object(ConditionRegister flag, Register 
     b(failure);
   } else {
     assert(LockingMode == LM_LIGHTWEIGHT, "must be");
-    fast_lock(oop, displaced_header, temp, failure);
+    lightweight_lock(oop, displaced_header, temp, failure);
     b(success);
   }
 
@@ -2759,7 +2759,19 @@ void MacroAssembler::compiler_fast_lock_object(ConditionRegister flag, Register 
   // flag == NE indicates failure
   bind(success);
   inc_held_monitor_count(temp);
+#ifdef ASSERT
+  // Check that unlocked label is reached with flag == EQ.
+  Label flag_correct;
+  beq(flag, flag_correct);
+  stop("compiler_fast_lock_object: Flag != EQ");
+#endif
   bind(failure);
+#ifdef ASSERT
+  // Check that slow_path label is reached with flag == NE.
+  bne(flag, flag_correct);
+  stop("compiler_fast_lock_object: Flag != NE");
+  bind(flag_correct);
+#endif
 }
 
 void MacroAssembler::compiler_fast_unlock_object(ConditionRegister flag, Register oop, Register box,
@@ -2819,7 +2831,7 @@ void MacroAssembler::compiler_fast_unlock_object(ConditionRegister flag, Registe
     b(success);
   } else {
     assert(LockingMode == LM_LIGHTWEIGHT, "must be");
-    fast_unlock(oop, current_header, failure);
+    lightweight_unlock(oop, current_header, failure);
     b(success);
   }
 
@@ -2827,7 +2839,10 @@ void MacroAssembler::compiler_fast_unlock_object(ConditionRegister flag, Registe
   bind(object_has_monitor);
   STATIC_ASSERT(markWord::monitor_value <= INT_MAX);
   addi(current_header, current_header, -(int)markWord::monitor_value); // monitor
-  ld(temp,             in_bytes(ObjectMonitor::owner_offset()), current_header);
+
+  if ((LockingMode == LM_LIGHTWEIGHT) || use_rtm) {
+    ld(temp,             in_bytes(ObjectMonitor::owner_offset()), current_header);
+  }
 
   // It's inflated.
 #if INCLUDE_RTM_OPT
@@ -2842,15 +2857,18 @@ void MacroAssembler::compiler_fast_unlock_object(ConditionRegister flag, Registe
   }
 #endif
 
-  // In case of LM_LIGHTWEIGHT, we may reach here with (temp & ObjectMonitor::ANONYMOUS_OWNER) != 0.
-  // This is handled like owner thread mismatches: We take the slow path.
-  cmpd(flag, temp, R16_thread);
-  bne(flag, failure);
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    // In case of LM_LIGHTWEIGHT, we may reach here with (temp & ObjectMonitor::ANONYMOUS_OWNER) != 0.
+    // This is handled like owner thread mismatches: We take the slow path.
+    cmpd(flag, temp, R16_thread);
+    bne(flag, failure);
+  }
 
   ld(displaced_header, in_bytes(ObjectMonitor::recursions_offset()), current_header);
-
   addic_(displaced_header, displaced_header, -1);
   blt(CCR0, notRecursive); // Not recursive if negative after decrement.
+
+  // Recursive unlock
   std(displaced_header, in_bytes(ObjectMonitor::recursions_offset()), current_header);
   if (flag == CCR0) { // Otherwise, flag is already EQ, here.
     crorc(CCR0, Assembler::equal, CCR0, Assembler::equal); // Set CCR0 EQ
@@ -2870,7 +2888,19 @@ void MacroAssembler::compiler_fast_unlock_object(ConditionRegister flag, Registe
   // flag == NE indicates failure
   bind(success);
   dec_held_monitor_count(temp);
+#ifdef ASSERT
+  // Check that unlocked label is reached with flag == EQ.
+  Label flag_correct;
+  beq(flag, flag_correct);
+  stop("compiler_fast_unlock_object: Flag != EQ");
+#endif
   bind(failure);
+#ifdef ASSERT
+  // Check that slow_path label is reached with flag == NE.
+  bne(flag, flag_correct);
+  stop("compiler_fast_unlock_object: Flag != NE");
+  bind(flag_correct);
+#endif
 }
 
 void MacroAssembler::safepoint_poll(Label& slow_path, Register temp, bool at_return, bool in_nmethod) {
@@ -4491,14 +4521,14 @@ void MacroAssembler::atomically_flip_locked_state(bool is_unlock, Register obj, 
   }
 }
 
-// Implements fast-locking.
+// Implements lightweight-locking.
 // Branches to slow upon failure to lock the object, with CCR0 NE.
 // Falls through upon success with CCR0 EQ.
 //
 //  - obj: the object to be locked
 //  - hdr: the header, already loaded from obj, will be destroyed
 //  - t1: temporary register
-void MacroAssembler::fast_lock(Register obj, Register hdr, Register t1, Label& slow) {
+void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register t1, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
   assert_different_registers(obj, hdr, t1);
 
@@ -4524,13 +4554,13 @@ void MacroAssembler::fast_lock(Register obj, Register hdr, Register t1, Label& s
   stw(t1, in_bytes(JavaThread::lock_stack_top_offset()), R16_thread);
 }
 
-// Implements fast-unlocking.
+// Implements lightweight-unlocking.
 // Branches to slow upon failure, with CCR0 NE.
 // Falls through upon success, with CCR0 EQ.
 //
 // - obj: the object to be unlocked
 // - hdr: the (pre-loaded) header of the object, will be destroyed
-void MacroAssembler::fast_unlock(Register obj, Register hdr, Label& slow) {
+void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
   assert_different_registers(obj, hdr);
 

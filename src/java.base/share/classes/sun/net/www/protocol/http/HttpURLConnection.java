@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1995, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1995, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -84,6 +84,7 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static sun.net.util.ProxyUtil.copyProxy;
 import static sun.net.www.protocol.http.AuthScheme.BASIC;
 import static sun.net.www.protocol.http.AuthScheme.DIGEST;
 import static sun.net.www.protocol.http.AuthScheme.NTLM;
@@ -171,6 +172,8 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
     /* buffer size for buffered error stream;
      */
     private static int bufSize4ES = 0;
+
+    private static final int maxHeaderSize;
 
     /*
      * Restrict setting of request headers through the public api
@@ -286,6 +289,19 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
         } else {
             restrictedHeaderSet = null;
         }
+
+        int defMaxHeaderSize = 384 * 1024;
+        String maxHeaderSizeStr = getNetProperty("jdk.http.maxHeaderSize");
+        int maxHeaderSizeVal = defMaxHeaderSize;
+        if (maxHeaderSizeStr != null) {
+            try {
+                maxHeaderSizeVal = Integer.parseInt(maxHeaderSizeStr);
+            } catch (NumberFormatException n) {
+                maxHeaderSizeVal = defMaxHeaderSize;
+            }
+        }
+        if (maxHeaderSizeVal < 0) maxHeaderSizeVal = 0;
+        maxHeaderSize = maxHeaderSizeVal;
     }
 
     static final String httpVersion = "HTTP/1.1";
@@ -401,6 +417,10 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
     /* Remembered Exception, we will throw it again if somebody
        calls getInputStream after disconnect */
     private Exception rememberedException = null;
+
+    /* Remembered Exception, we will throw it again if somebody
+       calls getOutputStream after disconnect  or error */
+    private Exception rememberedExceptionOut = null;
 
     /* If we decide we want to reuse a client, we put it here */
     private HttpClient reuseClient = null;
@@ -755,7 +775,7 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
                 }
                 ps = (PrintStream) http.getOutputStream();
                 connected=true;
-                responses = new MessageHeader();
+                responses = new MessageHeader(maxHeaderSize);
                 setRequests=false;
                 writeRequests();
             }
@@ -913,10 +933,10 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
             throws IOException {
         super(checkURL(u));
         requests = new MessageHeader();
-        responses = new MessageHeader();
+        responses = new MessageHeader(maxHeaderSize);
         userHeaders = new MessageHeader();
         this.handler = handler;
-        instProxy = p;
+        instProxy = copyProxy(p);
         if (instProxy instanceof sun.net.ApplicationProxy) {
             /* Application set Proxies should not have access to cookies
              * in a secure environment unless explicitly allowed. */
@@ -1231,7 +1251,7 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
                     final Iterator<Proxy> it = proxies.iterator();
                     Proxy p;
                     while (it.hasNext()) {
-                        p = it.next();
+                        p = copyProxy(it.next());
                         try {
                             if (!failedOnce) {
                                 http = getNewHttpClient(url, p, connectTimeout);
@@ -1429,6 +1449,14 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
                                + " if doOutput=false - call setDoOutput(true)");
             }
 
+            if (rememberedExceptionOut != null) {
+                if (rememberedExceptionOut instanceof RuntimeException) {
+                    throw new RuntimeException(rememberedExceptionOut);
+                } else {
+                    throw getChainedException((IOException) rememberedExceptionOut);
+                }
+            }
+
             if (method.equals("GET")) {
                 method = "POST"; // Backward compatibility
             }
@@ -1488,9 +1516,11 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
             int i = responseCode;
             disconnectInternal();
             responseCode = i;
+            rememberedExceptionOut = e;
             throw e;
         } catch (RuntimeException | IOException e) {
             disconnectInternal();
+            rememberedExceptionOut = e;
             throw e;
         }
     }
@@ -2838,7 +2868,7 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
         }
 
         // clear out old response headers!!!!
-        responses = new MessageHeader();
+        responses = new MessageHeader(maxHeaderSize);
         if (stat == HTTP_USE_PROXY) {
             /* This means we must re-request the resource through the
              * proxy denoted in the "Location:" field of the response.
@@ -3028,7 +3058,7 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
             } catch (IOException e) { }
         }
         responseCode = -1;
-        responses = new MessageHeader();
+        responses = new MessageHeader(maxHeaderSize);
         connected = false;
     }
 

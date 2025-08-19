@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -258,9 +258,12 @@ class G1CardSetHashTable : public CHeapObj<mtGCCardSet> {
 
     uintx get_hash() const { return G1CardSetHashTable::get_hash(_region_idx); }
 
-    bool equals(G1CardSetHashTableValue* value, bool* is_dead) {
-      *is_dead = false;
+    bool equals(G1CardSetHashTableValue* value) {
       return value->_region_idx == _region_idx;
+    }
+
+    bool is_dead(G1CardSetHashTableValue*) {
+      return false;
     }
   };
 
@@ -283,7 +286,10 @@ public:
                      size_t initial_log_table_size = InitialLogTableSize) :
     _inserted_card(false),
     _mm(mm),
-    _table(mm, initial_log_table_size, false),
+    _table(Mutex::service-1,
+           mm,
+           initial_log_table_size,
+           false /* enable_statistics */),
     _table_scanner(&_table, BucketClaimSize) {
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -26,6 +26,7 @@
 #define SHARE_UTILITIES_CONCURRENTHASHTABLE_HPP
 
 #include "memory/allocation.hpp"
+#include "runtime/mutex.hpp"
 #include "utilities/globalCounter.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/growableArray.hpp"
@@ -64,6 +65,7 @@ class ConcurrentHashTable : public CHeapObj<F> {
   // the InternalTable or user-defined memory.
   class Node {
    private:
+    DEBUG_ONLY(size_t _saved_hash);
     Node * volatile _next;
     VALUE _value;
    public:
@@ -76,6 +78,10 @@ class ConcurrentHashTable : public CHeapObj<F> {
     Node* next() const;
     void set_next(Node* node)         { _next = node; }
     Node* const volatile * next_ptr() { return &_next; }
+#ifdef ASSERT
+    size_t saved_hash() const         { return _saved_hash; }
+    void set_saved_hash(size_t hash)  { _saved_hash = hash; }
+#endif
 
     VALUE* value()                    { return &_value; }
 
@@ -406,10 +412,11 @@ class ConcurrentHashTable : public CHeapObj<F> {
                       size_t log2size_limit = DEFAULT_MAX_SIZE_LOG2,
                       size_t grow_hint = DEFAULT_GROW_HINT,
                       bool enable_statistics = DEFAULT_ENABLE_STATISTICS,
+                      Mutex::Rank rank = Mutex::nosafepoint-2,
                       void* context = nullptr);
 
-  explicit ConcurrentHashTable(void* context, size_t log2size = DEFAULT_START_SIZE_LOG2, bool enable_statistics = DEFAULT_ENABLE_STATISTICS) :
-    ConcurrentHashTable(log2size, DEFAULT_MAX_SIZE_LOG2, DEFAULT_GROW_HINT, enable_statistics, context) {}
+  explicit ConcurrentHashTable(Mutex::Rank rank, void* context, size_t log2size = DEFAULT_START_SIZE_LOG2, bool enable_statistics = DEFAULT_ENABLE_STATISTICS) :
+    ConcurrentHashTable(log2size, DEFAULT_MAX_SIZE_LOG2, DEFAULT_GROW_HINT, enable_statistics, rank, context) {}
 
   ~ConcurrentHashTable();
 

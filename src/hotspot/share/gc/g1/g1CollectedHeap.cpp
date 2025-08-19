@@ -25,7 +25,7 @@
 #include "precompiled.hpp"
 #include "classfile/classLoaderDataGraph.hpp"
 #include "classfile/metadataOnStackMark.hpp"
-#include "classfile/stringTable.hpp"
+#include "classfile/systemDictionary.hpp"
 #include "code/codeCache.hpp"
 #include "code/icBuffer.hpp"
 #include "compiler/oopMap.hpp"
@@ -74,6 +74,7 @@
 #include "gc/g1/heapRegion.inline.hpp"
 #include "gc/g1/heapRegionRemSet.inline.hpp"
 #include "gc/g1/heapRegionSet.inline.hpp"
+#include "gc/shared/classUnloadingContext.hpp"
 #include "gc/shared/concurrentGCBreakpoints.hpp"
 #include "gc/shared/gcBehaviours.hpp"
 #include "gc/shared/gcHeapSummary.hpp"
@@ -400,7 +401,7 @@ G1CollectedHeap::mem_allocate(size_t word_size,
   return attempt_allocation(word_size, word_size, &dummy);
 }
 
-HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size) {
+HeapWord* G1CollectedHeap::attempt_allocation_slow(uint node_index, size_t word_size) {
   ResourceMark rm; // For retrieving the thread names in log messages.
 
   // Make sure you read the note in attempt_allocation_humongous().
@@ -426,7 +427,7 @@ HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size) {
 
       // Now that we have the lock, we first retry the allocation in case another
       // thread changed the region while we were waiting to acquire the lock.
-      result = _allocator->attempt_allocation_locked(word_size);
+      result = _allocator->attempt_allocation_locked(node_index, word_size);
       if (result != nullptr) {
         return result;
       }
@@ -437,7 +438,7 @@ HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size) {
       if (GCLocker::is_active_and_needs_gc() && policy()->can_expand_young_list()) {
         // No need for an ergo message here, can_expand_young_list() does this when
         // it returns true.
-        result = _allocator->attempt_allocation_force(word_size);
+        result = _allocator->attempt_allocation_force(node_index, word_size);
         if (result != nullptr) {
           return result;
         }
@@ -494,7 +495,7 @@ HeapWord* G1CollectedHeap::attempt_allocation_slow(size_t word_size) {
     // follow-on attempt will be at the start of the next loop
     // iteration (after taking the Heap_lock).
     size_t dummy = 0;
-    result = _allocator->attempt_allocation(word_size, word_size, &dummy);
+    result = _allocator->attempt_allocation(node_index, word_size, word_size, &dummy);
     if (result != nullptr) {
       return result;
     }
@@ -635,11 +636,14 @@ inline HeapWord* G1CollectedHeap::attempt_allocation(size_t min_word_size,
   assert(!is_humongous(desired_word_size), "attempt_allocation() should not "
          "be called for humongous allocation requests");
 
-  HeapWord* result = _allocator->attempt_allocation(min_word_size, desired_word_size, actual_word_size);
+  // Fix NUMA node association for the duration of this allocation
+  const uint node_index = _allocator->current_node_index();
+
+  HeapWord* result = _allocator->attempt_allocation(node_index, min_word_size, desired_word_size, actual_word_size);
 
   if (result == nullptr) {
     *actual_word_size = desired_word_size;
-    result = attempt_allocation_slow(desired_word_size);
+    result = attempt_allocation_slow(node_index, desired_word_size);
   }
 
   assert_heap_not_locked();
@@ -777,8 +781,11 @@ HeapWord* G1CollectedHeap::attempt_allocation_at_safepoint(size_t word_size,
   assert(!_allocator->has_mutator_alloc_region() || !expect_null_mutator_alloc_region,
          "the current alloc region was unexpectedly found to be non-null");
 
+  // Fix NUMA node association for the duration of this allocation
+  const uint node_index = _allocator->current_node_index();
+
   if (!is_humongous(word_size)) {
-    return _allocator->attempt_allocation_locked(word_size);
+    return _allocator->attempt_allocation_locked(node_index, word_size);
   } else {
     HeapWord* result = humongous_obj_allocate(word_size);
     if (result != nullptr && policy()->need_to_start_conc_mark("STW humongous allocation")) {
@@ -855,10 +862,6 @@ void G1CollectedHeap::verify_before_full_collection() {
 }
 
 void G1CollectedHeap::prepare_for_mutator_after_full_collection() {
-  // Delete metaspaces for unloaded class loaders and clean up loader_data graph
-  ClassLoaderDataGraph::purge(/*at_safepoint*/true);
-  DEBUG_ONLY(MetaspaceUtils::verify();)
-
   // Prepare heap for normal collections.
   assert(num_free_regions() == 0, "we should not have added any free regions");
   rebuild_region_sets(false /* free_list_only */);
@@ -2489,7 +2492,7 @@ void G1CollectedHeap::expand_heap_after_young_collection(){
 
 bool G1CollectedHeap::do_collection_pause_at_safepoint() {
   assert_at_safepoint_on_vm_thread();
-  guarantee(!is_gc_active(), "collection is not reentrant");
+  guarantee(!is_stw_gc_active(), "collection is not reentrant");
 
   if (GCLocker::check_active_before_gc()) {
     return false;
@@ -2557,7 +2560,7 @@ void G1CollectedHeap::retire_tlabs() {
 void G1CollectedHeap::do_collection_pause_at_safepoint_helper() {
   ResourceMark rm;
 
-  IsGCActiveMark active_gc_mark;
+  IsSTWGCActiveMark active_gc_mark;
   GCIdMark gc_id_mark;
   SvcGCMarker sgcm(SvcGCMarker::MINOR);
 
@@ -2594,6 +2597,65 @@ void G1CollectedHeap::complete_cleaning(bool class_unloading_occurred) {
   uint num_workers = workers()->active_workers();
   G1ParallelCleaningTask unlink_task(num_workers, class_unloading_occurred);
   workers()->run_task(&unlink_task);
+}
+
+void G1CollectedHeap::unload_classes_and_code(const char* description, BoolObjectClosure* is_alive, GCTimer* timer) {
+  GCTraceTime(Debug, gc, phases) debug(description, timer);
+
+  ClassUnloadingContext ctx(workers()->active_workers(),
+                            false /* unregister_nmethods_during_purge */,
+                            false /* lock_codeblob_free_separately */);
+  {
+    CodeCache::UnlinkingScope scope(is_alive);
+    bool unloading_occurred = SystemDictionary::do_unloading(timer);
+    GCTraceTime(Debug, gc, phases) t("G1 Complete Cleaning", timer);
+    complete_cleaning(unloading_occurred);
+  }
+  {
+    GCTraceTime(Debug, gc, phases) t("Purge Unlinked NMethods", timer);
+    ctx.purge_nmethods();
+  }
+  {
+    GCTraceTime(Debug, gc, phases) ur("Unregister NMethods", timer);
+    G1CollectedHeap::heap()->bulk_unregister_nmethods();
+  }
+  {
+    GCTraceTime(Debug, gc, phases) t("Free Code Blobs", timer);
+    ctx.free_code_blobs();
+  }
+  {
+    GCTraceTime(Debug, gc, phases) t("Purge Class Loader Data", timer);
+    ClassLoaderDataGraph::purge(true /* at_safepoint */);
+    DEBUG_ONLY(MetaspaceUtils::verify();)
+  }
+}
+
+class G1BulkUnregisterNMethodTask : public WorkerTask {
+  HeapRegionClaimer _hrclaimer;
+
+  class UnregisterNMethodsHeapRegionClosure : public HeapRegionClosure {
+  public:
+
+    bool do_heap_region(HeapRegion* hr) {
+      hr->rem_set()->bulk_remove_code_roots();
+      return false;
+    }
+  } _cl;
+
+public:
+  G1BulkUnregisterNMethodTask(uint num_workers)
+  : WorkerTask("G1 Remove Unlinked NMethods From Code Root Set Task"),
+    _hrclaimer(num_workers) { }
+
+  void work(uint worker_id) {
+    G1CollectedHeap::heap()->heap_region_par_iterate_from_worker_offset(&_cl, &_hrclaimer, worker_id);
+  }
+};
+
+void G1CollectedHeap::bulk_unregister_nmethods() {
+  uint num_workers = workers()->active_workers();
+  G1BulkUnregisterNMethodTask t(num_workers);
+  workers()->run_task(&t);
 }
 
 bool G1STWSubjectToDiscoveryClosure::do_object_b(oop obj) {
@@ -2761,7 +2823,7 @@ bool G1CollectedHeap::check_young_list_empty() {
 
 // Remove the given HeapRegion from the appropriate region set.
 void G1CollectedHeap::prepare_region_for_full_compaction(HeapRegion* hr) {
-   if (hr->is_humongous()) {
+  if (hr->is_humongous()) {
     _humongous_set.remove(hr);
   } else if (hr->is_old()) {
     _old_set.remove(hr);
@@ -3008,33 +3070,7 @@ public:
              " starting at " HR_FORMAT,
              p2i(_nm), HR_FORMAT_PARAMS(hr), HR_FORMAT_PARAMS(hr->humongous_start_region()));
 
-      // HeapRegion::add_code_root_locked() avoids adding duplicate entries.
-      hr->add_code_root_locked(_nm);
-    }
-  }
-
-  void do_oop(narrowOop* p) { ShouldNotReachHere(); }
-};
-
-class UnregisterNMethodOopClosure: public OopClosure {
-  G1CollectedHeap* _g1h;
-  nmethod* _nm;
-
-public:
-  UnregisterNMethodOopClosure(G1CollectedHeap* g1h, nmethod* nm) :
-    _g1h(g1h), _nm(nm) {}
-
-  void do_oop(oop* p) {
-    oop heap_oop = RawAccess<>::oop_load(p);
-    if (!CompressedOops::is_null(heap_oop)) {
-      oop obj = CompressedOops::decode_not_null(heap_oop);
-      HeapRegion* hr = _g1h->heap_region_containing(obj);
-      assert(!hr->is_continues_humongous(),
-             "trying to remove code root " PTR_FORMAT " in continuation of humongous region " HR_FORMAT
-             " starting at " HR_FORMAT,
-             p2i(_nm), HR_FORMAT_PARAMS(hr), HR_FORMAT_PARAMS(hr->humongous_start_region()));
-
-      hr->remove_code_root(_nm);
+      hr->add_code_root(_nm);
     }
   }
 
@@ -3048,9 +3084,8 @@ void G1CollectedHeap::register_nmethod(nmethod* nm) {
 }
 
 void G1CollectedHeap::unregister_nmethod(nmethod* nm) {
-  guarantee(nm != nullptr, "sanity");
-  UnregisterNMethodOopClosure reg_cl(this, nm);
-  nm->oops_do(&reg_cl, true);
+  // We always unregister nmethods in bulk during code unloading only.
+  ShouldNotReachHere();
 }
 
 void G1CollectedHeap::update_used_after_gc(bool evacuation_failed) {

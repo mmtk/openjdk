@@ -46,25 +46,20 @@ class MemoryCounter {
   volatile size_t   _count;
   volatile size_t   _size;
 
-#ifdef ASSERT
   // Peak size and count. Note: Peak count is the count at the point
   // peak size was reached, not the absolute highest peak count.
   volatile size_t _peak_count;
   volatile size_t _peak_size;
   void update_peak(size_t size, size_t cnt);
-#endif // ASSERT
 
  public:
-  MemoryCounter() : _count(0), _size(0) {
-    DEBUG_ONLY(_peak_count = 0;)
-    DEBUG_ONLY(_peak_size  = 0;)
-  }
+  MemoryCounter() : _count(0), _size(0), _peak_count(0), _peak_size(0) {}
 
   inline void allocate(size_t sz) {
     size_t cnt = Atomic::add(&_count, size_t(1), memory_order_relaxed);
     if (sz > 0) {
       size_t sum = Atomic::add(&_size, sz, memory_order_relaxed);
-      DEBUG_ONLY(update_peak(sum, cnt);)
+      update_peak(sum, cnt);
     }
   }
 
@@ -81,7 +76,7 @@ class MemoryCounter {
     if (sz != 0) {
       assert(sz >= 0 || size() >= size_t(-sz), "Must be");
       size_t sum = Atomic::add(&_size, size_t(sz), memory_order_relaxed);
-      DEBUG_ONLY(update_peak(sum, _count);)
+      update_peak(sum, _count);
     }
   }
 
@@ -89,11 +84,11 @@ class MemoryCounter {
   inline size_t size()  const { return Atomic::load(&_size);  }
 
   inline size_t peak_count() const {
-    return DEBUG_ONLY(Atomic::load(&_peak_count)) NOT_DEBUG(0);
+    return Atomic::load(&_peak_count);
   }
 
   inline size_t peak_size() const {
-    return DEBUG_ONLY(Atomic::load(&_peak_size)) NOT_DEBUG(0);
+    return Atomic::load(&_peak_size);
   }
 };
 
@@ -145,7 +140,7 @@ class MallocMemorySummary;
 
 // A snapshot of malloc'd memory, includes malloc memory
 // usage by types and memory used by tracking itself.
-class MallocMemorySnapshot : public ResourceObj {
+class MallocMemorySnapshot {
   friend class MallocMemorySummary;
 
  private:
@@ -181,11 +176,6 @@ class MallocMemorySnapshot : public ResourceObj {
   // Total malloc'd memory used by arenas
   size_t total_arena() const;
 
-  inline size_t thread_count() const {
-    MallocMemorySnapshot* s = const_cast<MallocMemorySnapshot*>(this);
-    return s->by_type(mtThreadStack)->malloc_count();
-  }
-
   void copy_to(MallocMemorySnapshot* s) {
     // Need to make sure that mtChunks don't get deallocated while the
     // copy is going on, because their size is adjusted using this
@@ -208,7 +198,7 @@ class MallocMemorySnapshot : public ResourceObj {
 class MallocMemorySummary : AllStatic {
  private:
   // Reserve memory for placement of MallocMemorySnapshot object
-  static size_t _snapshot[CALC_OBJ_SIZE_IN_TYPE(MallocMemorySnapshot, size_t)];
+  static MallocMemorySnapshot _snapshot;
   static bool _have_limits;
 
   // Called when a total limit break was detected.
@@ -255,7 +245,7 @@ class MallocMemorySummary : AllStatic {
    }
 
   static MallocMemorySnapshot* as_snapshot() {
-    return (MallocMemorySnapshot*)_snapshot;
+    return &_snapshot;
   }
 
   // MallocLimit: returns true if allocating s bytes on f would trigger

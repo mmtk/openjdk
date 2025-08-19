@@ -29,6 +29,7 @@ import jdk.internal.misc.CDS;
 import jdk.internal.misc.VM;
 import jdk.internal.vm.annotation.ForceInline;
 import jdk.internal.vm.annotation.IntrinsicCandidate;
+import jdk.internal.vm.annotation.Stable;
 
 import java.lang.annotation.Native;
 import java.lang.constant.Constable;
@@ -1005,9 +1006,11 @@ public final class Integer extends Number
      * with new Integer object(s) after initialization.
      */
 
-    private static class IntegerCache {
+    private static final class IntegerCache {
         static final int low = -128;
         static final int high;
+
+        @Stable
         static final Integer[] cache;
         static Integer[] archivedCache;
 
@@ -1035,7 +1038,17 @@ public final class Integer extends Number
             if (archivedCache == null || size > archivedCache.length) {
                 Integer[] c = new Integer[size];
                 int j = low;
-                for(int i = 0; i < c.length; i++) {
+                // If archive has Integer cache, we must use all instances from it.
+                // Otherwise, the identity checks between archived Integers and
+                // runtime-cached Integers would fail.
+                int archivedSize = (archivedCache == null) ? 0 : archivedCache.length;
+                for (int i = 0; i < archivedSize; i++) {
+                    c[i] = archivedCache[i];
+                    assert j == archivedCache[i];
+                    j++;
+                }
+                // Fill the rest of the cache.
+                for (int i = archivedSize; i < size; i++) {
                     c[i] = new Integer(j++);
                 }
                 archivedCache = c;

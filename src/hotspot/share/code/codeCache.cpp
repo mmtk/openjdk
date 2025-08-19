@@ -37,6 +37,7 @@
 #include "compiler/compilerDefinitions.inline.hpp"
 #include "compiler/oopMap.hpp"
 #include "gc/shared/barrierSetNMethod.hpp"
+#include "gc/shared/classUnloadingContext.hpp"
 #include "gc/shared/collectedHeap.hpp"
 #include "jfr/jfrEvents.hpp"
 #include "jvm_io.h"
@@ -310,9 +311,20 @@ void CodeCache::initialize_heaps() {
   FLAG_SET_ERGO(ProfiledCodeHeapSize, profiled_size);
   FLAG_SET_ERGO(NonProfiledCodeHeapSize, non_profiled_size);
 
+  const size_t ps = page_size(false, 8);
+  // Print warning if using large pages but not able to use the size given
+  if (UseLargePages) {
+    const size_t lg_ps = page_size(false, 1);
+    if (ps < lg_ps) {
+      log_warning(codecache)("Code cache size too small for " PROPERFMT " pages. "
+                             "Reverting to smaller page size (" PROPERFMT ").",
+                             PROPERFMTARGS(lg_ps), PROPERFMTARGS(ps));
+    }
+  }
+
   // If large page support is enabled, align code heaps according to large
   // page size to make sure that code cache is covered by large pages.
-  const size_t alignment = MAX2(page_size(false, 8), os::vm_allocation_granularity());
+  const size_t alignment = MAX2(ps, os::vm_allocation_granularity());
   non_nmethod_size = align_up(non_nmethod_size, alignment);
   profiled_size    = align_down(profiled_size, alignment);
   non_profiled_size = align_down(non_profiled_size, alignment);
@@ -324,7 +336,7 @@ void CodeCache::initialize_heaps() {
   //         Non-nmethods
   //      Profiled nmethods
   // ---------- low ------------
-  ReservedCodeSpace rs = reserve_heap_memory(cache_size);
+  ReservedCodeSpace rs = reserve_heap_memory(cache_size, ps);
   ReservedSpace profiled_space      = rs.first_part(profiled_size);
   ReservedSpace rest                = rs.last_part(profiled_size);
   ReservedSpace non_method_space    = rest.first_part(non_nmethod_size);
@@ -354,9 +366,8 @@ size_t CodeCache::page_size(bool aligned, size_t min_pages) {
   }
 }
 
-ReservedCodeSpace CodeCache::reserve_heap_memory(size_t size) {
+ReservedCodeSpace CodeCache::reserve_heap_memory(size_t size, size_t rs_ps) {
   // Align and reserve space for code cache
-  const size_t rs_ps = page_size();
   const size_t rs_align = MAX2(rs_ps, os::vm_allocation_granularity());
   const size_t rs_size = align_up(size, rs_align);
   ReservedCodeSpace rs(rs_size, rs_align, rs_ps);
@@ -462,10 +473,10 @@ CodeHeap* CodeCache::get_code_heap_containing(void* start) {
   return nullptr;
 }
 
-CodeHeap* CodeCache::get_code_heap(const CodeBlob* cb) {
+CodeHeap* CodeCache::get_code_heap(const void* cb) {
   assert(cb != nullptr, "CodeBlob is null");
   FOR_ALL_HEAPS(heap) {
-    if ((*heap)->contains_blob(cb)) {
+    if ((*heap)->contains(cb)) {
       return *heap;
     }
   }
@@ -594,8 +605,9 @@ void CodeCache::free(CodeBlob* cb) {
     heap->set_adapter_count(heap->adapter_count() - 1);
   }
 
+  cb->~CodeBlob();
   // Get heap for given CodeBlob and deallocate
-  get_code_heap(cb)->deallocate(cb);
+  heap->deallocate(cb);
 
   assert(heap->blob_count() >= 0, "sanity check");
 }
@@ -959,36 +971,8 @@ void CodeCache::purge_exception_caches() {
   _exception_cache_purge_list = nullptr;
 }
 
-// Register an is_unloading nmethod to be flushed after unlinking
-void CodeCache::register_unlinked(nmethod* nm) {
-  assert(nm->unlinked_next() == nullptr, "Only register for unloading once");
-  for (;;) {
-    // Only need acquire when reading the head, when the next
-    // pointer is walked, which it is not here.
-    nmethod* head = Atomic::load(&_unlinked_head);
-    nmethod* next = head != nullptr ? head : nm; // Self looped means end of list
-    nm->set_unlinked_next(next);
-    if (Atomic::cmpxchg(&_unlinked_head, head, nm) == head) {
-      break;
-    }
-  }
-}
-
-// Flush all the nmethods the GC unlinked
-void CodeCache::flush_unlinked_nmethods() {
-  nmethod* nm = _unlinked_head;
-  _unlinked_head = nullptr;
-  size_t freed_memory = 0;
-  while (nm != nullptr) {
-    nmethod* next = nm->unlinked_next();
-    freed_memory += nm->total_size();
-    nm->flush();
-    if (next == nm) {
-      // Self looped means end of list
-      break;
-    }
-    nm = next;
-  }
+// Restart compiler if possible and required..
+void CodeCache::maybe_restart_compiler(size_t freed_memory) {
 
   // Try to start the compiler again if we freed any memory
   if (!CompileBroker::should_compile_new_jobs() && freed_memory != 0) {
@@ -1002,7 +986,6 @@ void CodeCache::flush_unlinked_nmethods() {
 }
 
 uint8_t CodeCache::_unloading_cycle = 1;
-nmethod* volatile CodeCache::_unlinked_head = nullptr;
 
 void CodeCache::increment_unloading_cycle() {
   // 2-bit value (see IsUnloadingState in nmethod.cpp for details)
@@ -1013,7 +996,7 @@ void CodeCache::increment_unloading_cycle() {
   }
 }
 
-CodeCache::UnloadingScope::UnloadingScope(BoolObjectClosure* is_alive)
+CodeCache::UnlinkingScope::UnlinkingScope(BoolObjectClosure* is_alive)
   : _is_unloading_behaviour(is_alive)
 {
   _saved_behaviour = IsUnloadingBehaviour::current();
@@ -1022,10 +1005,9 @@ CodeCache::UnloadingScope::UnloadingScope(BoolObjectClosure* is_alive)
   DependencyContext::cleaning_start();
 }
 
-CodeCache::UnloadingScope::~UnloadingScope() {
+CodeCache::UnlinkingScope::~UnlinkingScope() {
   IsUnloadingBehaviour::set_current(_saved_behaviour);
   DependencyContext::cleaning_end();
-  CodeCache::flush_unlinked_nmethods();
 }
 
 void CodeCache::verify_oops() {
@@ -1194,7 +1176,7 @@ void CodeCache::initialize() {
     FLAG_SET_ERGO(NonNMethodCodeHeapSize, (uintx)os::vm_page_size());
     FLAG_SET_ERGO(ProfiledCodeHeapSize, 0);
     FLAG_SET_ERGO(NonProfiledCodeHeapSize, 0);
-    ReservedCodeSpace rs = reserve_heap_memory(ReservedCodeCacheSize);
+    ReservedCodeSpace rs = reserve_heap_memory(ReservedCodeCacheSize, page_size(false, 8));
     // Register CodeHeaps with LSan as we sometimes embed pointers to malloc memory.
     LSAN_REGISTER_ROOT_REGION(rs.base(), rs.size());
     add_heap(rs, "CodeCache", CodeBlobType::All);
@@ -1723,6 +1705,10 @@ void CodeCache::print() {
 
 void CodeCache::print_summary(outputStream* st, bool detailed) {
   int full_count = 0;
+  julong total_used = 0;
+  julong total_max_used = 0;
+  julong total_free = 0;
+  julong total_size = 0;
   FOR_ALL_HEAPS(heap_iterator) {
     CodeHeap* heap = (*heap_iterator);
     size_t total = (heap->high_boundary() - heap->low_boundary());
@@ -1731,10 +1717,17 @@ void CodeCache::print_summary(outputStream* st, bool detailed) {
     } else {
       st->print("CodeCache:");
     }
+    size_t size = total/K;
+    size_t used = (total - heap->unallocated_capacity())/K;
+    size_t max_used = heap->max_allocated_capacity()/K;
+    size_t free = heap->unallocated_capacity()/K;
+    total_size += size;
+    total_used += used;
+    total_max_used += max_used;
+    total_free += free;
     st->print_cr(" size=" SIZE_FORMAT "Kb used=" SIZE_FORMAT
                  "Kb max_used=" SIZE_FORMAT "Kb free=" SIZE_FORMAT "Kb",
-                 total/K, (total - heap->unallocated_capacity())/K,
-                 heap->max_allocated_capacity()/K, heap->unallocated_capacity()/K);
+                 size, used, max_used, free);
 
     if (detailed) {
       st->print_cr(" bounds [" INTPTR_FORMAT ", " INTPTR_FORMAT ", " INTPTR_FORMAT "]",
@@ -1747,17 +1740,22 @@ void CodeCache::print_summary(outputStream* st, bool detailed) {
   }
 
   if (detailed) {
-    st->print_cr(" total_blobs=" UINT32_FORMAT " nmethods=" UINT32_FORMAT
-                       " adapters=" UINT32_FORMAT,
-                       blob_count(), nmethod_count(), adapter_count());
-    st->print_cr(" compilation: %s", CompileBroker::should_compile_new_jobs() ?
+    if (SegmentedCodeCache) {
+      st->print("CodeCache:");
+      st->print_cr(" size=" JULONG_FORMAT "Kb, used=" JULONG_FORMAT
+                   "Kb, max_used=" JULONG_FORMAT "Kb, free=" JULONG_FORMAT "Kb",
+                   total_size, total_used, total_max_used, total_free);
+    }
+    st->print_cr(" total_blobs=" UINT32_FORMAT ", nmethods=" UINT32_FORMAT
+                 ", adapters=" UINT32_FORMAT ", full_count=" UINT32_FORMAT,
+                 blob_count(), nmethod_count(), adapter_count(), full_count);
+    st->print_cr("Compilation: %s, stopped_count=%d, restarted_count=%d",
+                 CompileBroker::should_compile_new_jobs() ?
                  "enabled" : Arguments::mode() == Arguments::_int ?
                  "disabled (interpreter mode)" :
-                 "disabled (not enough contiguous free space left)");
-    st->print_cr("              stopped_count=%d, restarted_count=%d",
+                 "disabled (not enough contiguous free space left)",
                  CompileBroker::get_total_compiler_stopped_count(),
                  CompileBroker::get_total_compiler_restarted_count());
-    st->print_cr(" full_count=%d", full_count);
   }
 }
 

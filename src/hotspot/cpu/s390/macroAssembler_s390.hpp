@@ -722,8 +722,11 @@ class MacroAssembler: public Assembler {
 
   void compiler_fast_lock_object(Register oop, Register box, Register temp1, Register temp2);
   void compiler_fast_unlock_object(Register oop, Register box, Register temp1, Register temp2);
+  void lightweight_lock(Register obj, Register hdr, Register tmp, Label& slow);
+  void lightweight_unlock(Register obj, Register hdr, Register tmp, Label& slow);
 
   void resolve_jobject(Register value, Register tmp1, Register tmp2);
+  void resolve_global_jobject(Register value, Register tmp1, Register tmp2);
 
   // Support for last Java frame (but use call_VM instead where possible).
  private:
@@ -785,7 +788,6 @@ class MacroAssembler: public Assembler {
   void compare_klass_ptr(Register Rop1, int64_t disp, Register Rbase, bool maybenull);
 
   // Access heap oop, handle encoding and GC barriers.
- private:
   void access_store_at(BasicType type, DecoratorSet decorators,
                        const Address& addr, Register val,
                        Register tmp1, Register tmp2, Register tmp3);

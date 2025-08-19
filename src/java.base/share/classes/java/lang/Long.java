@@ -36,6 +36,7 @@ import java.util.Optional;
 import jdk.internal.misc.CDS;
 import jdk.internal.vm.annotation.ForceInline;
 import jdk.internal.vm.annotation.IntrinsicCandidate;
+import jdk.internal.vm.annotation.Stable;
 
 import static java.lang.String.COMPACT_STRINGS;
 import static java.lang.String.LATIN1;
@@ -1156,9 +1157,10 @@ public final class Long extends Number
         return Long.valueOf(parseLong(s, 10));
     }
 
-    private static class LongCache {
+    private static final class LongCache {
         private LongCache() {}
 
+        @Stable
         static final Long[] cache;
         static Long[] archivedCache;
 
@@ -1167,7 +1169,7 @@ public final class Long extends Number
 
             // Load and use the archived cache if it exists
             CDS.initializeFromArchive(LongCache.class);
-            if (archivedCache == null || archivedCache.length != size) {
+            if (archivedCache == null) {
                 Long[] c = new Long[size];
                 long value = -128;
                 for(int i = 0; i < size; i++) {
@@ -1176,6 +1178,7 @@ public final class Long extends Number
                 archivedCache = c;
             }
             cache = archivedCache;
+            assert cache.length == size;
         }
     }
 

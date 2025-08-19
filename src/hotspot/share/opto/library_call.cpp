@@ -1108,6 +1108,7 @@ bool LibraryCallKit::inline_countPositives() {
   Node* ba_start = array_element_address(ba, offset, T_BYTE);
   Node* result = new CountPositivesNode(control(), memory(TypeAryPtr::BYTES), ba_start, len);
   set_result(_gvn.transform(result));
+  clear_upper_avx();
   return true;
 }
 
@@ -1362,6 +1363,7 @@ bool LibraryCallKit::inline_string_indexOfChar(StrIntrinsicNode::ArgEnc ae) {
   set_control(_gvn.transform(region));
   record_for_igvn(region);
   set_result(_gvn.transform(phi));
+  clear_upper_avx();
 
   return true;
 }
@@ -2864,6 +2866,7 @@ bool LibraryCallKit::inline_native_notify_jvmti_funcs(address funcAddr, const ch
   if (!DoJVMTIVirtualThreadTransitions) {
     return true;
   }
+  Node* vt_oop = _gvn.transform(must_be_not_null(argument(0), true)); // VirtualThread this argument
   IdealKit ideal(this);
 
   Node* ONE = ideal.ConI(1);
@@ -2872,24 +2875,20 @@ bool LibraryCallKit::inline_native_notify_jvmti_funcs(address funcAddr, const ch
   Node* notify_jvmti_enabled = ideal.load(ideal.ctrl(), addr, TypeInt::BOOL, T_BOOLEAN, Compile::AliasIdxRaw);
 
   ideal.if_then(notify_jvmti_enabled, BoolTest::eq, ONE); {
+    sync_kit(ideal);
     // if notifyJvmti enabled then make a call to the given SharedRuntime function
     const TypeFunc* tf = OptoRuntime::notify_jvmti_vthread_Type();
-    Node* vt_oop = _gvn.transform(must_be_not_null(argument(0), true)); // VirtualThread this argument
-
-    sync_kit(ideal);
     make_runtime_call(RC_NO_LEAF, tf, funcAddr, funcName, TypePtr::BOTTOM, vt_oop, hide);
     ideal.sync_kit(this);
   } ideal.else_(); {
     // set hide value to the VTMS transition bit in current JavaThread and VirtualThread object
-    Node* vt_oop = _gvn.transform(argument(0)); // this argument - VirtualThread oop
     Node* thread = ideal.thread();
     Node* jt_addr = basic_plus_adr(thread, in_bytes(JavaThread::is_in_VTMS_transition_offset()));
     Node* vt_addr = basic_plus_adr(vt_oop, java_lang_Thread::is_in_VTMS_transition_offset());
-    const TypePtr *addr_type = _gvn.type(addr)->isa_ptr();
 
     sync_kit(ideal);
-    access_store_at(nullptr, jt_addr, addr_type, hide, _gvn.type(hide), T_BOOLEAN, IN_NATIVE | MO_UNORDERED);
-    access_store_at(nullptr, vt_addr, addr_type, hide, _gvn.type(hide), T_BOOLEAN, IN_NATIVE | MO_UNORDERED);
+    access_store_at(nullptr, jt_addr, _gvn.type(jt_addr)->is_ptr(), hide, _gvn.type(hide), T_BOOLEAN, IN_NATIVE | MO_UNORDERED);
+    access_store_at(nullptr, vt_addr, _gvn.type(vt_addr)->is_ptr(), hide, _gvn.type(hide), T_BOOLEAN, IN_NATIVE | MO_UNORDERED);
 
     ideal.sync_kit(this);
   } ideal.end_if();
@@ -3224,7 +3223,9 @@ bool LibraryCallKit::inline_native_getEventWriter() {
 
   // Load the raw epoch value from the threadObj.
   Node* threadObj_epoch_offset = basic_plus_adr(threadObj, java_lang_Thread::jfr_epoch_offset());
-  Node* threadObj_epoch_raw = access_load_at(threadObj, threadObj_epoch_offset, TypeRawPtr::BOTTOM, TypeInt::CHAR, T_CHAR,
+  Node* threadObj_epoch_raw = access_load_at(threadObj, threadObj_epoch_offset,
+                                             _gvn.type(threadObj_epoch_offset)->isa_ptr(),
+                                             TypeInt::CHAR, T_CHAR,
                                              IN_HEAP | MO_UNORDERED | C2_MISMATCHED | C2_CONTROL_DEPENDENT_LOAD);
 
   // Mask off the excluded information from the epoch.
@@ -3239,7 +3240,8 @@ bool LibraryCallKit::inline_native_getEventWriter() {
 
   // Load the raw epoch value from the vthread.
   Node* vthread_epoch_offset = basic_plus_adr(vthread, java_lang_Thread::jfr_epoch_offset());
-  Node* vthread_epoch_raw = access_load_at(vthread, vthread_epoch_offset, TypeRawPtr::BOTTOM, TypeInt::CHAR, T_CHAR,
+  Node* vthread_epoch_raw = access_load_at(vthread, vthread_epoch_offset, _gvn.type(vthread_epoch_offset)->is_ptr(),
+                                           TypeInt::CHAR, T_CHAR,
                                            IN_HEAP | MO_UNORDERED | C2_MISMATCHED | C2_CONTROL_DEPENDENT_LOAD);
 
   // Mask off the excluded information from the epoch.
@@ -3475,7 +3477,7 @@ void LibraryCallKit::extend_setCurrentThread(Node* jt, Node* thread) {
 
   // Load the raw epoch value from the vthread.
   Node* epoch_offset = basic_plus_adr(thread, java_lang_Thread::jfr_epoch_offset());
-  Node* epoch_raw = access_load_at(thread, epoch_offset, TypeRawPtr::BOTTOM, TypeInt::CHAR, T_CHAR,
+  Node* epoch_raw = access_load_at(thread, epoch_offset, _gvn.type(epoch_offset)->is_ptr(), TypeInt::CHAR, T_CHAR,
                                    IN_HEAP | MO_UNORDERED | C2_MISMATCHED | C2_CONTROL_DEPENDENT_LOAD);
 
   // Mask off the excluded information from the epoch.
@@ -3586,12 +3588,19 @@ bool LibraryCallKit::inline_native_setCurrentThread() {
   return true;
 }
 
-Node* LibraryCallKit::scopedValueCache_helper() {
-  ciKlass *objects_klass = ciObjArrayKlass::make(env()->Object_klass());
-  const TypeOopPtr *etype = TypeOopPtr::make_from_klass(env()->Object_klass());
+const Type* LibraryCallKit::scopedValueCache_type() {
+  ciKlass* objects_klass = ciObjArrayKlass::make(env()->Object_klass());
+  const TypeOopPtr* etype = TypeOopPtr::make_from_klass(env()->Object_klass());
+  const TypeAry* arr0 = TypeAry::make(etype, TypeInt::POS);
 
+  // Because we create the scopedValue cache lazily we have to make the
+  // type of the result BotPTR.
   bool xk = etype->klass_is_exact();
+  const Type* objects_type = TypeAryPtr::make(TypePtr::BotPTR, arr0, objects_klass, xk, 0);
+  return objects_type;
+}
 
+Node* LibraryCallKit::scopedValueCache_helper() {
   Node* thread = _gvn.transform(new ThreadLocalNode());
   Node* p = basic_plus_adr(top()/*!oop*/, thread, in_bytes(JavaThread::scopedValueCache_offset()));
   // We cannot use immutable_memory() because we might flip onto a
@@ -3604,15 +3613,8 @@ Node* LibraryCallKit::scopedValueCache_helper() {
 
 //------------------------inline_native_scopedValueCache------------------
 bool LibraryCallKit::inline_native_scopedValueCache() {
-  ciKlass *objects_klass = ciObjArrayKlass::make(env()->Object_klass());
-  const TypeOopPtr *etype = TypeOopPtr::make_from_klass(env()->Object_klass());
-  const TypeAry* arr0 = TypeAry::make(etype, TypeInt::POS);
-
-  // Because we create the scopedValue cache lazily we have to make the
-  // type of the result BotPTR.
-  bool xk = etype->klass_is_exact();
-  const Type* objects_type = TypeAryPtr::make(TypePtr::BotPTR, arr0, objects_klass, xk, 0);
   Node* cache_obj_handle = scopedValueCache_helper();
+  const Type* objects_type = scopedValueCache_type();
   set_result(access_load(cache_obj_handle, objects_type, T_OBJECT, IN_NATIVE));
 
   return true;
@@ -3622,9 +3624,10 @@ bool LibraryCallKit::inline_native_scopedValueCache() {
 bool LibraryCallKit::inline_native_setScopedValueCache() {
   Node* arr = argument(0);
   Node* cache_obj_handle = scopedValueCache_helper();
+  const Type* objects_type = scopedValueCache_type();
 
   const TypePtr *adr_type = _gvn.type(cache_obj_handle)->isa_ptr();
-  access_store_at(nullptr, cache_obj_handle, adr_type, arr, _gvn.type(arr), T_OBJECT, IN_NATIVE | MO_UNORDERED);
+  access_store_at(nullptr, cache_obj_handle, adr_type, arr, objects_type, T_OBJECT, IN_NATIVE | MO_UNORDERED);
 
   return true;
 }
@@ -4271,11 +4274,15 @@ bool LibraryCallKit::inline_array_copyOf(bool is_copyOfRange) {
       length = _gvn.transform(new SubINode(end, start));
     }
 
-    // Bail out if length is negative.
+    // Bail out if length is negative (i.e., if start > end).
     // Without this the new_array would throw
     // NegativeArraySizeException but IllegalArgumentException is what
     // should be thrown
     generate_negative_guard(length, bailout, &length);
+
+    // Bail out if start is larger than the original length
+    Node* orig_tail = _gvn.transform(new SubINode(orig_length, start));
+    generate_negative_guard(orig_tail, bailout, &orig_tail);
 
     if (bailout->req() > 1) {
       PreserveJVMState pjvms(this);
@@ -4286,8 +4293,7 @@ bool LibraryCallKit::inline_array_copyOf(bool is_copyOfRange) {
 
     if (!stopped()) {
       // How many elements will we copy from the original?
-      // The answer is MinI(orig_length - start, length).
-      Node* orig_tail = _gvn.transform(new SubINode(orig_length, start));
+      // The answer is MinI(orig_tail, length).
       Node* moved = generate_min_max(vmIntrinsics::_min, orig_tail, length);
 
       // Generate a direct call to the right arraycopy function(s).
@@ -4335,7 +4341,7 @@ bool LibraryCallKit::inline_array_copyOf(bool is_copyOfRange) {
       if (!stopped()) {
         newcopy = new_array(klass_node, length, 0);  // no arguments to push
 
-        ArrayCopyNode* ac = ArrayCopyNode::make(this, true, original, start, newcopy, intcon(0), moved, true, false,
+        ArrayCopyNode* ac = ArrayCopyNode::make(this, true, original, start, newcopy, intcon(0), moved, true, true,
                                                 load_object_klass(original), klass_node);
         if (!is_copyOfRange) {
           ac->set_copyof(validated);
@@ -4515,14 +4521,22 @@ bool LibraryCallKit::inline_native_hashcode(bool is_virtual, bool is_static) {
   Node* no_ctrl = nullptr;
   Node* header = make_load(no_ctrl, header_addr, TypeX_X, TypeX_X->basic_type(), MemNode::unordered);
 
-  // Test the header to see if it is unlocked.
+  // Test the header to see if it is safe to read w.r.t. locking.
   Node *lock_mask      = _gvn.MakeConX(markWord::lock_mask_in_place);
   Node *lmasked_header = _gvn.transform(new AndXNode(header, lock_mask));
-  Node *unlocked_val   = _gvn.MakeConX(markWord::unlocked_value);
-  Node *chk_unlocked   = _gvn.transform(new CmpXNode( lmasked_header, unlocked_val));
-  Node *test_unlocked  = _gvn.transform(new BoolNode( chk_unlocked, BoolTest::ne));
+  if (LockingMode == LM_LIGHTWEIGHT) {
+    Node *monitor_val   = _gvn.MakeConX(markWord::monitor_value);
+    Node *chk_monitor   = _gvn.transform(new CmpXNode(lmasked_header, monitor_val));
+    Node *test_monitor  = _gvn.transform(new BoolNode(chk_monitor, BoolTest::eq));
 
-  generate_slow_guard(test_unlocked, slow_region);
+    generate_slow_guard(test_monitor, slow_region);
+  } else {
+    Node *unlocked_val      = _gvn.MakeConX(markWord::unlocked_value);
+    Node *chk_unlocked      = _gvn.transform(new CmpXNode(lmasked_header, unlocked_val));
+    Node *test_not_unlocked = _gvn.transform(new BoolNode(chk_unlocked, BoolTest::ne));
+
+    generate_slow_guard(test_not_unlocked, slow_region);
+  }
 
   // Get the hash value and check to see that it has been properly assigned.
   // We depend on hash_mask being at most 32 bits and avoid the use of
@@ -4891,7 +4905,13 @@ void LibraryCallKit::copy_to_clone(Node* obj, Node* alloc_obj, Node* obj_size, b
   assert(alloc_obj->is_CheckCastPP() && raw_obj->is_Proj() && raw_obj->in(0)->is_Allocate(), "");
 
   AllocateNode* alloc = nullptr;
-  if (ReduceBulkZeroing) {
+  if (ReduceBulkZeroing &&
+      // If we are implementing an array clone without knowing its source type
+      // (can happen when compiling the array-guarded branch of a reflective
+      // Object.clone() invocation), initialize the array within the allocation.
+      // This is needed because some GCs (e.g. ZGC) might fall back in this case
+      // to a runtime clone call that assumes fully initialized source arrays.
+      (!is_array || obj->get_ptr_type()->isa_aryptr() != nullptr)) {
     // We will be completely responsible for initializing this object -
     // mark Initialize node as complete.
     alloc = AllocateNode::Ideal_allocation(alloc_obj, &_gvn);
@@ -4993,8 +5013,8 @@ bool LibraryCallKit::inline_native_clone(bool is_virtual) {
       PreserveJVMState pjvms(this);
       set_control(array_ctl);
       Node* obj_length = load_array_length(obj);
-      Node* obj_size  = nullptr;
-      Node* alloc_obj = new_array(obj_klass, obj_length, 0, &obj_size, /*deoptimize_on_exception=*/true);
+      Node* array_size = nullptr; // Size of the array without object alignment padding.
+      Node* alloc_obj = new_array(obj_klass, obj_length, 0, &array_size, /*deoptimize_on_exception=*/true);
 
       BarrierSetC2* bs = BarrierSet::barrier_set()->barrier_set_c2();
       if (bs->array_copy_requires_gc_barriers(true, T_OBJECT, true, false, BarrierSetC2::Parsing)) {
@@ -5027,7 +5047,7 @@ bool LibraryCallKit::inline_native_clone(bool is_virtual) {
       //  the object.)
 
       if (!stopped()) {
-        copy_to_clone(obj, alloc_obj, obj_size, true);
+        copy_to_clone(obj, alloc_obj, array_size, true);
 
         // Present the results of the copy.
         result_reg->init_req(_array_path, control());
@@ -5067,7 +5087,7 @@ bool LibraryCallKit::inline_native_clone(bool is_virtual) {
     if (!stopped()) {
       // It's an instance, and it passed the slow-path tests.
       PreserveJVMState pjvms(this);
-      Node* obj_size  = nullptr;
+      Node* obj_size = nullptr; // Total object size, including object alignment padding.
       // Need to deoptimize on exception from allocation since Object.clone intrinsic
       // is reexecuted if deoptimization occurs and there could be problems when merging
       // exception state between multiple Object.clone versions (reexecute=true vs reexecute=false).

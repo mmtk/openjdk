@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -42,12 +42,10 @@ import java.util.List;
 /*
  * @test
  * @summary jpackage with --app-content option
- * @library ../helpers
- * @library /test/lib
+ * @library /test/jdk/tools/jpackage/helpers
  * @key jpackagePlatformPackage
  * @build jdk.jpackage.test.*
  * @build AppContentTest
- * @modules jdk.jpackage/jdk.jpackage.internal
  * @run main/othervm/timeout=720 -Xmx512m jdk.jpackage.test.Main
  *  --jpt-run=AppContentTest
  */
@@ -99,7 +97,7 @@ public class AppContentTest {
                 }
 
             })
-            // On macOS aarch64 we always signing app image and signing will fail, since
+            // On macOS we always signing app image and signing will fail, since
             // test produces invalid app bundle.
             .setExpectedExitCode(testPathArgs.contains(TEST_BAD) || TKit.isOSX() ? 1 : 0)
             .run();

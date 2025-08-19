@@ -110,6 +110,9 @@
 #if INCLUDE_MANAGEMENT
 #include "services/finalizerService.hpp"
 #endif
+#ifdef LINUX
+#include "osContainer_linux.hpp"
+#endif
 
 #include <errno.h>
 
@@ -487,6 +490,15 @@ JVM_END
 JVM_LEAF(jboolean, JVM_IsUseContainerSupport(void))
 #ifdef LINUX
   if (UseContainerSupport) {
+    return JNI_TRUE;
+  }
+#endif
+  return JNI_FALSE;
+JVM_END
+
+JVM_LEAF(jboolean, JVM_IsContainerized(void))
+#ifdef LINUX
+  if (OSContainer::is_containerized()) {
     return JNI_TRUE;
   }
 #endif
@@ -1385,9 +1397,8 @@ JVM_ENTRY(jobject, JVM_FindScopedValueBindings(JNIEnv *env, jclass cls))
 
     InstanceKlass* holder = method->method_holder();
     if (name == vmSymbols::runWith_method_name()) {
-      if ((holder == resolver.Carrier_klass
-           || holder == vmClasses::VirtualThread_klass()
-           || holder == vmClasses::Thread_klass())) {
+      if (holder == vmClasses::Thread_klass()
+          || holder == resolver.Carrier_klass) {
         loc = 1;
       }
     }

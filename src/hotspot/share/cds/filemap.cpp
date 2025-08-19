@@ -221,6 +221,7 @@ void FileMapHeader::populate(FileMapInfo *info, size_t core_region_alignment,
   }
   _compressed_oops = UseCompressedOops;
   _compressed_class_ptrs = UseCompressedClassPointers;
+  _use_secondary_supers_table = UseSecondarySupersTable;
   _max_heap_size = MaxHeapSize;
   _narrow_klass_shift = CompressedKlassPointers::shift();
   _use_optimized_module_handling = MetaspaceShared::use_optimized_module_handling();
@@ -286,6 +287,7 @@ void FileMapHeader::print(outputStream* st) {
   st->print_cr("- narrow_klass_shift:             %d", _narrow_klass_shift);
   st->print_cr("- compressed_oops:                %d", _compressed_oops);
   st->print_cr("- compressed_class_ptrs:          %d", _compressed_class_ptrs);
+  st->print_cr("- use_secondary_supers_table:     %d", _use_secondary_supers_table);
   st->print_cr("- cloned_vtables_offset:          " SIZE_FORMAT_X, _cloned_vtables_offset);
   st->print_cr("- serialized_data_offset:         " SIZE_FORMAT_X, _serialized_data_offset);
   st->print_cr("- heap_begin:                     " INTPTR_FORMAT, p2i(_heap_begin));
@@ -368,7 +370,7 @@ void SharedClassPathEntry::copy_from(SharedClassPathEntry* ent, ClassLoaderData*
   _from_class_path_attr = ent->_from_class_path_attr;
   set_name(ent->name(), CHECK);
 
-  if (ent->is_jar() && !ent->is_signed() && ent->manifest() != nullptr) {
+  if (ent->is_jar() && ent->manifest() != nullptr) {
     Array<u1>* buf = MetadataFactory::new_array<u1>(loader_data,
                                                     ent->manifest_size(),
                                                     CHECK);
@@ -584,7 +586,7 @@ int FileMapInfo::get_module_shared_path_index(Symbol* location) {
 
   // skip_uri_protocol was also called during dump time -- see ClassLoaderExt::process_module_table()
   ResourceMark rm;
-  const char* file = ClassLoader::skip_uri_protocol(location->as_C_string());
+  const char* file = ClassLoader::uri_to_path(location->as_C_string());
   for (int i = ClassLoaderExt::app_module_paths_start_index(); i < get_number_of_shared_paths(); i++) {
     SharedClassPathEntry* ent = shared_path(i);
     assert(ent->in_named_module(), "must be");
@@ -622,29 +624,6 @@ class ManifestStream: public ResourceObj {
     buf[len] = 0;
     return buf;
   }
-
-  // The return value indicates if the JAR is signed or not
-  bool check_is_signed() {
-    u1* attr = _current;
-    bool isSigned = false;
-    while (_current < _buffer_end) {
-      if (*_current == '\n') {
-        *_current = '\0';
-        u1* value = (u1*)strchr((char*)attr, ':');
-        if (value != nullptr) {
-          assert(*(value+1) == ' ', "Unrecognized format" );
-          if (strstr((char*)attr, "-Digest") != nullptr) {
-            isSigned = true;
-            break;
-          }
-        }
-        *_current = '\n'; // restore
-        attr = _current + 1;
-      }
-      _current ++;
-    }
-    return isSigned;
-  }
 };
 
 void FileMapInfo::update_jar_manifest(ClassPathEntry *cpe, SharedClassPathEntry* ent, TRAPS) {
@@ -657,18 +636,14 @@ void FileMapInfo::update_jar_manifest(ClassPathEntry *cpe, SharedClassPathEntry*
   if (manifest != nullptr) {
     ManifestStream* stream = new ManifestStream((u1*)manifest,
                                                 manifest_size);
-    if (stream->check_is_signed()) {
-      ent->set_is_signed();
-    } else {
-      // Copy the manifest into the shared archive
-      manifest = ClassLoaderExt::read_raw_manifest(THREAD, cpe, &manifest_size);
-      Array<u1>* buf = MetadataFactory::new_array<u1>(loader_data,
-                                                      manifest_size,
-                                                      CHECK);
-      char* p = (char*)(buf->data());
-      memcpy(p, manifest, manifest_size);
-      ent->set_manifest(buf);
-    }
+    // Copy the manifest into the shared archive
+    manifest = ClassLoaderExt::read_raw_manifest(THREAD, cpe, &manifest_size);
+    Array<u1>* buf = MetadataFactory::new_array<u1>(loader_data,
+                                                    manifest_size,
+                                                    CHECK);
+    char* p = (char*)(buf->data());
+    memcpy(p, manifest, manifest_size);
+    ent->set_manifest(buf);
   }
 }
 
@@ -2051,7 +2026,7 @@ address FileMapInfo::heap_region_dumptime_address() {
   assert(UseSharedSpaces, "runtime only");
   assert(is_aligned(r->mapping_offset(), sizeof(HeapWord)), "must be");
   if (UseCompressedOops) {
-    return /*dumptime*/ narrow_oop_base() + r->mapping_offset();
+    return /*dumptime*/ (address)((uintptr_t)narrow_oop_base() + r->mapping_offset());
   } else {
     return heap_region_requested_address();
   }
@@ -2077,7 +2052,7 @@ address FileMapInfo::heap_region_requested_address() {
     // Runtime base = 0x4000 and shift is also 0. If we map this region at 0x5000, then
     // the value P can remain 0x1200. The decoded address = (0x4000 + (0x1200 << 0)) = 0x5200,
     // which is the runtime location of the referenced object.
-    return /*runtime*/ CompressedOops::base() + r->mapping_offset();
+    return /*runtime*/ (address)((uintptr_t)CompressedOops::base() + r->mapping_offset());
   } else {
     // We can avoid relocation if each region is mapped into the exact same address
     // where it was at dump time.
@@ -2432,6 +2407,11 @@ bool FileMapHeader::validate() {
   if (compressed_oops() != UseCompressedOops || compressed_class_pointers() != UseCompressedClassPointers) {
     log_info(cds)("Unable to use shared archive.\nThe saved state of UseCompressedOops and UseCompressedClassPointers is "
                                "different from runtime, CDS will be disabled.");
+    return false;
+  }
+
+  if (! _use_secondary_supers_table && UseSecondarySupersTable) {
+    log_warning(cds)("The shared archive was created without UseSecondarySupersTable.");
     return false;
   }
 

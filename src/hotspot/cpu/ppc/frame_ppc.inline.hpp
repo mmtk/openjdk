@@ -250,10 +250,6 @@ inline int frame::interpreter_frame_monitor_size() {
                   WordsPerLong);            // number of stack slots for a Java long
 }
 
-inline int frame::interpreter_frame_monitor_size_in_bytes() {
-  return frame::interpreter_frame_monitor_size() * wordSize;
-}
-
 // entry frames
 
 inline intptr_t* frame::entry_frame_argument_at(int offset) const {
@@ -367,7 +363,7 @@ inline const ImmutableOopMap* frame::get_oop_map() const {
 
 inline int frame::compiled_frame_stack_argsize() const {
   assert(cb()->is_compiled(), "");
-  return (cb()->as_compiled_method()->method()->num_stack_arg_slots() * VMRegImpl::stack_slot_size) >> LogBytesPerWord;
+  return (cb()->as_nmethod()->num_stack_arg_slots() * VMRegImpl::stack_slot_size) >> LogBytesPerWord;
 }
 
 inline void frame::interpreted_frame_oop_map(InterpreterOopMap* mask) const {

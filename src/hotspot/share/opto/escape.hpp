@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2005, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -112,6 +112,7 @@
 
 class  Compile;
 class  Node;
+class  AbstractLockNode;
 class  CallNode;
 class  PhiNode;
 class  PhaseTransform;
@@ -539,10 +540,10 @@ private:
   bool split_AddP(Node *addp, Node *base);
 
   PhiNode *create_split_phi(PhiNode *orig_phi, int alias_idx, GrowableArray<PhiNode *>  &orig_phi_worklist, bool &new_created);
-  PhiNode *split_memory_phi(PhiNode *orig_phi, int alias_idx, GrowableArray<PhiNode *>  &orig_phi_worklist);
+  PhiNode *split_memory_phi(PhiNode *orig_phi, int alias_idx, GrowableArray<PhiNode *>  &orig_phi_worklist, uint rec_depth);
 
   void  move_inst_mem(Node* n, GrowableArray<PhiNode *>  &orig_phis);
-  Node* find_inst_mem(Node* mem, int alias_idx,GrowableArray<PhiNode *>  &orig_phi_worklist);
+  Node* find_inst_mem(Node* mem, int alias_idx,GrowableArray<PhiNode *>  &orig_phi_worklist, uint rec_depth = 0);
   Node* step_through_mergemem(MergeMemNode *mmem, int alias_idx, const TypeOopPtr *toop);
 
   Node_Array _node_map; // used for bookkeeping during type splitting
@@ -606,6 +607,8 @@ public:
   static void do_analysis(Compile *C, PhaseIterGVN *igvn);
 
   bool not_global_escape(Node *n);
+
+  bool can_eliminate_lock(AbstractLockNode* alock);
 
   // To be used by, e.g., BarrierSetC2 impls
   Node* get_addp_base(Node* addp);

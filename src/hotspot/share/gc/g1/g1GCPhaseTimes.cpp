@@ -123,6 +123,10 @@ G1GCPhaseTimes::G1GCPhaseTimes(STWGCTimer* gc_timer, uint max_gc_threads) :
   _gc_par_phases[MergeLB]->create_thread_work_items("Dirty Cards:", MergeLBDirtyCards);
   _gc_par_phases[MergeLB]->create_thread_work_items("Skipped Cards:", MergeLBSkippedCards);
 
+  _gc_par_phases[CodeRoots]->create_thread_work_items("Scanned Nmethods", CodeRootsScannedNMethods);
+
+  _gc_par_phases[OptCodeRoots]->create_thread_work_items("Scanned Nmethods", CodeRootsScannedNMethods);
+
   _gc_par_phases[MergePSS]->create_thread_work_items("Copied Bytes", MergePSSCopiedBytes);
   _gc_par_phases[MergePSS]->create_thread_work_items("LAB Waste", MergePSSLABWasteBytes);
   _gc_par_phases[MergePSS]->create_thread_work_items("LAB Undo Waste", MergePSSLABUndoWasteBytes);
@@ -370,7 +374,7 @@ void G1GCPhaseTimes::trace_phase(WorkerDataArray<double>* phase, bool print_sum,
   }
 }
 
-#define TIME_FORMAT "%.1lfms"
+#define TIME_FORMAT "%.2lfms"
 
 void G1GCPhaseTimes::info_time(const char* name, double value) const {
   log_info(gc, phases)("  %s: " TIME_FORMAT, name, value);

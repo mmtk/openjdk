@@ -54,10 +54,12 @@
 #include "runtime/stackOverflow.hpp"
 #include "runtime/threads.hpp"
 #include "runtime/threadSMR.hpp"
+#include "runtime/trimNativeHeap.hpp"
 #include "runtime/vmThread.hpp"
 #include "runtime/vmOperations.hpp"
 #include "runtime/vm_version.hpp"
 #include "services/memTracker.hpp"
+#include "sanitizers/ub.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/decoder.hpp"
 #include "utilities/defaultStream.hpp"
@@ -102,12 +104,15 @@ const char*       VMError::_filename;
 int               VMError::_lineno;
 size_t            VMError::_size;
 const size_t      VMError::_reattempt_required_stack_headroom = 64 * K;
+const intptr_t    VMError::segfault_address = pd_segfault_address;
 
 // List of environment variables that should be reported in error log file.
 static const char* env_list[] = {
   // All platforms
   "JAVA_HOME", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "CLASSPATH",
   "PATH", "USERNAME",
+
+  "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "FC_LANG", "FONTCONFIG_USE_MMAP",
 
   // Env variables that are defined on Linux/BSD
   "LD_LIBRARY_PATH", "LD_PRELOAD", "SHELL", "DISPLAY",
@@ -426,7 +431,7 @@ static frame next_frame(frame fr, Thread* t) {
     if (!t->is_in_full_stack((address)(fr.real_fp() + 1))) {
       return invalid;
     }
-    if (fr.is_java_frame() || fr.is_native_frame() || fr.is_runtime_frame()) {
+    if (fr.is_interpreted_frame() || (fr.cb() != nullptr && fr.cb()->frame_size() > 0)) {
       RegisterMap map(JavaThread::cast(t),
                       RegisterMap::UpdateMap::skip,
                       RegisterMap::ProcessFrames::include,
@@ -482,7 +487,7 @@ static void print_oom_reasons(outputStream* st) {
   st->print_cr("# Possible reasons:");
   st->print_cr("#   The system is out of physical RAM or swap space");
   if (UseCompressedOops) {
-    st->print_cr("#   The process is running with CompressedOops enabled, and the Java Heap may be blocking the growth of the native heap");
+    st->print_cr("#   This process is running with CompressedOops enabled, and the Java Heap may be blocking the growth of the native heap");
   }
   if (LogBytesPerWord == 2) {
     st->print_cr("#   In 32 bit mode, the process size limit was hit");
@@ -714,6 +719,11 @@ void VMError::report(outputStream* st, bool _verbose) {
                    "Runtime Environment to continue.");
     }
 
+  // avoid the cache update for malloc/mmap errors
+  if (should_report_bug(_id)) {
+    os::prepare_native_symbols();
+  }
+
 #ifdef ASSERT
   // Error handler self tests
   // Meaning of codes passed through in the tests.
@@ -820,9 +830,9 @@ void VMError::report(outputStream* st, bool _verbose) {
                                                     "(mprotect) failed to protect ");
           jio_snprintf(buf, sizeof(buf), SIZE_FORMAT, _size);
           st->print("%s", buf);
-          st->print(" bytes");
+          st->print(" bytes.");
           if (strlen(_detail_msg) > 0) {
-            st->print(" for ");
+            st->print(" Error detail: ");
             st->print("%s", _detail_msg);
           }
           st->cr();
@@ -1094,6 +1104,11 @@ void VMError::report(outputStream* st, bool _verbose) {
     print_stack_location(st, _context, continuation);
     st->cr();
 
+  STEP_IF("printing lock stack", _verbose && _thread != nullptr && _thread->is_Java_thread() && LockingMode == LM_LIGHTWEIGHT);
+    st->print_cr("Lock stack of current Java thread (top to bottom):");
+    JavaThread::cast(_thread)->lock_stack().print_on(st);
+    st->cr();
+
   STEP_IF("printing code blobs if possible", _verbose)
     const int printed_capacity = max_error_log_print_code;
     address printed[printed_capacity];
@@ -1247,6 +1262,12 @@ void VMError::report(outputStream* st, bool _verbose) {
     os::print_dll_info(st);
     st->cr();
 
+#if INCLUDE_JVMTI
+  STEP_IF("printing jvmti agent info", _verbose)
+    os::print_jvmti_agent_info(st);
+    st->cr();
+#endif
+
   STEP_IF("printing native decoder state", _verbose)
     Decoder::print_state_on(st);
     st->cr();
@@ -1273,6 +1294,10 @@ void VMError::report(outputStream* st, bool _verbose) {
     LogConfiguration::describe_current_configuration(st);
     st->cr();
 
+  STEP_IF("printing release file content", _verbose)
+    st->print_cr("Release file:");
+    os::print_image_release_file(st);
+
   STEP_IF("printing all environment variables", _verbose)
     os::print_environment_variables(st, env_list);
     st->cr();
@@ -1287,9 +1312,13 @@ void VMError::report(outputStream* st, bool _verbose) {
 
   STEP_IF("Native Memory Tracking", _verbose)
     MemTracker::error_report(st);
+    st->cr();
+
+  STEP_IF("printing periodic trim state", _verbose)
+    NativeHeapTrimmer::print_state(st);
+    st->cr();
 
   STEP_IF("printing system", _verbose)
-    st->cr();
     st->print_cr("---------------  S Y S T E M  ---------------");
     st->cr();
 
@@ -1331,6 +1360,8 @@ void VMError::report(outputStream* st, bool _verbose) {
 void VMError::print_vm_info(outputStream* st) {
 
   char buf[O_BUFLEN];
+  os::prepare_native_symbols();
+
   report_vm_version(st, buf, sizeof(buf));
 
   // STEP("printing summary")
@@ -1422,6 +1453,11 @@ void VMError::print_vm_info(outputStream* st) {
   os::print_dll_info(st);
   st->cr();
 
+#if INCLUDE_JVMTI
+  os::print_jvmti_agent_info(st);
+  st->cr();
+#endif
+
   // STEP("printing VM options")
 
   // VM options
@@ -1439,6 +1475,10 @@ void VMError::print_vm_info(outputStream* st) {
   st->print_cr("Logging:");
   LogConfiguration::describe(st);
   st->cr();
+
+  // STEP("printing release file content")
+  st->print_cr("Release file:");
+  os::print_image_release_file(st);
 
   // STEP("printing all environment variables")
 
@@ -1459,10 +1499,14 @@ void VMError::print_vm_info(outputStream* st) {
   // STEP("Native Memory Tracking")
 
   MemTracker::error_report(st);
+  st->cr();
+
+  // STEP("printing periodic trim state")
+  NativeHeapTrimmer::print_state(st);
+  st->cr();
+
 
   // STEP("printing system")
-
-  st->cr();
   st->print_cr("---------------  S Y S T E M  ---------------");
   st->cr();
 
@@ -1554,6 +1598,14 @@ void VMError::report_and_die(Thread* thread, unsigned int sig, address pc, void*
   va_list detail_args;
   va_start(detail_args, detail_fmt);
   report_and_die(sig, nullptr, detail_fmt, detail_args, thread, pc, siginfo, context, nullptr, 0, 0);
+  va_end(detail_args);
+}
+
+void VMError::report_and_die(Thread* thread, void* context, const char* filename, int lineno, const char* message,
+                             const char* detail_fmt, ...) {
+  va_list detail_args;
+  va_start(detail_args, detail_fmt);
+  report_and_die(thread, context, filename, lineno, message, detail_fmt, detail_args);
   va_end(detail_args);
 }
 
@@ -1819,7 +1871,7 @@ void VMError::report_and_die(int id, const char* message, const char* detail_fmt
   if (DumpReplayDataOnError && _thread && _thread->is_Compiler_thread() && !skip_replay) {
     skip_replay = true;
     ciEnv* env = ciEnv::current();
-    if (env != nullptr) {
+    if (env != nullptr && env->task() != nullptr) {
       const bool overwrite = false; // We do not overwrite an existing replay file.
       int fd = prepare_log_file(ReplayDataFile, "replay_pid%p.log", overwrite, buffer, sizeof(buffer));
       if (fd != -1) {
@@ -1833,6 +1885,7 @@ void VMError::report_and_die(int id, const char* message, const char* detail_fmt
           int e = errno;
           out.print_raw("#\n# Can't open file to dump replay data. Error: ");
           out.print_raw_cr(os::strerror(e));
+          close(fd);
         }
       }
     }
@@ -2039,8 +2092,11 @@ bool VMError::check_timeout() {
 #ifdef ASSERT
 typedef void (*voidfun_t)();
 
-// Crash with an authentic sigfpe
+// Crash with an authentic sigfpe; behavior is subtly different from a real signal
+// compared to one generated with raise (asynchronous vs synchronous). See JDK-8065895.
 volatile int sigfpe_int = 0;
+
+ATTRIBUTE_NO_UBSAN
 static void ALWAYSINLINE crash_with_sigfpe() {
 
   // generate a native synchronous SIGFPE where possible;

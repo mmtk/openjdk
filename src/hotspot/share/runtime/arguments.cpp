@@ -316,7 +316,6 @@ static bool matches_property_suffix(const char* option, const char* property, si
 // any of the reserved module properties.
 // property should be passed without the leading "-D".
 bool Arguments::is_internal_module_property(const char* property) {
-  assert((strncmp(property, "-D", 2) != 0), "Unexpected leading -D");
   if  (strncmp(property, MODULE_PROPERTY_PREFIX, MODULE_PROPERTY_PREFIX_LEN) == 0) {
     const char* property_suffix = property + MODULE_PROPERTY_PREFIX_LEN;
     if (matches_property_suffix(property_suffix, ADDEXPORTS, ADDEXPORTS_LEN) ||
@@ -1906,22 +1905,12 @@ bool Arguments::check_vm_args_consistency() {
   }
 #endif
 
-
-#if !defined(X86) && !defined(AARCH64) && !defined(RISCV64) && !defined(ARM) && !defined(PPC64)
+#if !defined(X86) && !defined(AARCH64) && !defined(RISCV64) && !defined(ARM) && !defined(PPC64) && !defined(S390)
   if (LockingMode == LM_LIGHTWEIGHT) {
     FLAG_SET_CMDLINE(LockingMode, LM_LEGACY);
     warning("New lightweight locking not supported on this platform");
   }
 #endif
-
-  if (UseHeavyMonitors) {
-    if (FLAG_IS_CMDLINE(LockingMode) && LockingMode != LM_MONITOR) {
-      jio_fprintf(defaultStream::error_stream(),
-                  "Conflicting -XX:+UseHeavyMonitors and -XX:LockingMode=%d flags", LockingMode);
-      return false;
-    }
-    FLAG_SET_CMDLINE(LockingMode, LM_MONITOR);
-  }
 
 #if !defined(X86) && !defined(AARCH64) && !defined(PPC64) && !defined(RISCV64) && !defined(S390)
   if (LockingMode == LM_MONITOR) {
@@ -4011,6 +4000,17 @@ jint Arguments::apply_ergo() {
   jint code = set_aggressive_opts_flags();
   if (code != JNI_OK) {
     return code;
+  }
+
+  if (FLAG_IS_DEFAULT(UseSecondarySupersTable)) {
+    FLAG_SET_DEFAULT(UseSecondarySupersTable, VM_Version::supports_secondary_supers_table());
+  } else if (UseSecondarySupersTable && !VM_Version::supports_secondary_supers_table()) {
+    warning("UseSecondarySupersTable is not supported");
+    FLAG_SET_DEFAULT(UseSecondarySupersTable, false);
+  }
+  if (!UseSecondarySupersTable) {
+    FLAG_SET_DEFAULT(StressSecondarySupers, false);
+    FLAG_SET_DEFAULT(VerifySecondarySupers, false);
   }
 
 #ifdef ZERO

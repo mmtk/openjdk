@@ -219,6 +219,10 @@ class os: AllStatic {
   static void   pd_free_memory(char *addr, size_t bytes, size_t alignment_hint);
   static void   pd_realign_memory(char *addr, size_t bytes, size_t alignment_hint);
 
+  // Returns 0 if pretouch is done via platform dependent method, or otherwise
+  // returns page_size that should be used for the common method.
+  static size_t pd_pretouch_memory(void* first, void* last, size_t page_size);
+
   static char*  pd_reserve_memory_special(size_t size, size_t alignment, size_t page_size,
 
                                           char* addr, bool executable);
@@ -636,6 +640,11 @@ class os: AllStatic {
   static FILE* fopen(const char* path, const char* mode);
   static jlong lseek(int fd, jlong offset, int whence);
   static bool file_exists(const char* file);
+
+  // read/store and print the release file of the image
+  static void read_image_release_file();
+  static void print_image_release_file(outputStream* st);
+
   // This function, on Windows, canonicalizes a given path (see os_windows.cpp for details).
   // On Posix, this function is a noop: it does not change anything and just returns
   // the input pointer.
@@ -662,6 +671,8 @@ class os: AllStatic {
 
   static const char*    get_temp_directory();
   static const char*    get_current_directory(char *buf, size_t buflen);
+
+  static void           prepare_native_symbols();
 
   // Builds the platform-specific name of a library.
   // Returns false if the buffer is too small.
@@ -769,11 +780,12 @@ class os: AllStatic {
   static void print_summary_info(outputStream* st, char* buf, size_t buflen);
   static void print_memory_info(outputStream* st);
   static void print_dll_info(outputStream* st);
+  static void print_jvmti_agent_info(outputStream* st);
   static void print_environment_variables(outputStream* st, const char** env_list);
   static void print_context(outputStream* st, const void* context);
   static void print_tos_pc(outputStream* st, const void* context);
   static void print_tos(outputStream* st, address sp);
-  static void print_instructions(outputStream* st, address pc, int unitsize);
+  static void print_instructions(outputStream* st, address pc, int unitsize = 1);
   static void print_register_info(outputStream* st, const void* context, int& continuation);
   static void print_register_info(outputStream* st, const void* context);
   static bool signal_sent_by_kill(const void* siginfo);
@@ -1053,6 +1065,7 @@ class os: AllStatic {
                                 char pathSep);
   static bool set_boot_path(char fileSep, char pathSep);
 
+  static bool pd_dll_unload(void* libhandle, char* ebuf, int ebuflen);
 };
 
 // Note that "PAUSE" is almost always used with synchronization

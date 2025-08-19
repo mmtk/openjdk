@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,6 +24,9 @@
  */
 
 package sun.security.ssl;
+
+import static sun.security.ssl.SignatureScheme.CERTIFICATE_SCOPE;
+import static sun.security.ssl.SignatureScheme.HANDSHAKE_SCOPE;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -273,7 +276,16 @@ final class ServerHello {
                     shc.localSupportedSignAlgs =
                         SignatureScheme.getSupportedAlgorithms(
                                 shc.sslConfig,
-                                shc.algorithmConstraints, shc.activeProtocols);
+                                shc.algorithmConstraints, shc.activeProtocols,
+                                HANDSHAKE_SCOPE);
+                }
+
+                if (shc.localSupportedCertSignAlgs == null) {
+                    shc.localSupportedCertSignAlgs =
+                            SignatureScheme.getSupportedAlgorithms(
+                                    shc.sslConfig,
+                                    shc.algorithmConstraints, shc.activeProtocols,
+                                    CERTIFICATE_SCOPE);
                 }
 
                 SSLSessionImpl session =
@@ -514,7 +526,16 @@ final class ServerHello {
                     shc.localSupportedSignAlgs =
                         SignatureScheme.getSupportedAlgorithms(
                                 shc.sslConfig,
-                                shc.algorithmConstraints, shc.activeProtocols);
+                                shc.algorithmConstraints, shc.activeProtocols,
+                                HANDSHAKE_SCOPE);
+                }
+
+                if (shc.localSupportedCertSignAlgs == null) {
+                    shc.localSupportedCertSignAlgs =
+                            SignatureScheme.getSupportedAlgorithms(
+                                    shc.sslConfig,
+                                    shc.algorithmConstraints, shc.activeProtocols,
+                                    CERTIFICATE_SCOPE);
                 }
 
                 SSLSessionImpl session =
@@ -793,6 +814,15 @@ final class ServerHello {
             // Output the handshake message.
             hhrm.write(shc.handshakeOutput);
             shc.handshakeOutput.flush();
+
+            // In TLS1.3 middlebox compatibility mode the server sends a
+            // dummy change_cipher_spec record immediately after its
+            // first handshake message. This may either be after
+            // a ServerHello or a HelloRetryRequest.
+            // (RFC 8446, Appendix D.4)
+            shc.conContext.outputRecord.changeWriteCiphers(
+                SSLWriteCipher.nullTlsWriteCipher(),
+                    (clientHello.sessionId.length() != 0));
 
             // Stateless, shall we clean up the handshake context as well?
             shc.handshakeHash.finish();     // forgot about the handshake hash
