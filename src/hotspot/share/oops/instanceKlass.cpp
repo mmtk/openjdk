@@ -1475,8 +1475,7 @@ instanceOop InstanceKlass::register_finalizer(instanceOop i, TRAPS) {
 
   // If we are using third party heap, call their finalizer register method instead.
 #ifdef INCLUDE_THIRD_PARTY_HEAP
-  if (UseThirdPartyHeap) {
-    third_party_heap::register_finalizer((void*) i);
+  if (UseThirdPartyHeap && !RegisterReferences) {
     return h_i();
   }
 #endif

@@ -1462,6 +1462,12 @@ class java_lang_ClassLoader : AllStatic {
   static void compute_offsets();
 
  public:
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+  static inline int loader_data_offset() {
+    return _loader_data_offset;
+  }
+#endif
+
   static void serialize_offsets(SerializeClosure* f) NOT_CDS_RETURN;
 
   static ClassLoaderData* loader_data_acquire(oop loader);

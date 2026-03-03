@@ -250,7 +250,11 @@ class CollectedHeap : public CHeapObj<mtGC> {
   // Stop and resume concurrent GC threads interfering with safepoint operations
   virtual void safepoint_synchronize_begin() {}
   virtual void safepoint_synchronize_end() {}
+#ifdef INCLUDE_THIRD_PARTY_HEAP
   virtual void report_java_thread_yield(JavaThread* thread) {}
+  // Notify the heap for a newly created weak handle in WeakProcessor or StringTable
+  virtual void register_new_weak_handle(oop* handle) {}
+#endif
 
   void initialize_reserved_region(const ReservedHeapSpace& rs);
 

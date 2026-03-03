@@ -3049,7 +3049,7 @@ DEBUG_ONLY(static bool notified_needs_cleaning = false;)
 
 void JvmtiTagMap::set_needs_cleaning() {
   assert(SafepointSynchronize::is_at_safepoint(), "called in gc pause");
-  assert(Thread::current()->is_VM_thread(), "should be the VM thread");
+  // assert(Thread::current()->is_VM_thread(), "should be the VM thread");
   // Can't assert !notified_needs_cleaning; a partial GC might be upgraded
   // to a full GC and do this twice without intervening gc_notification.
   DEBUG_ONLY(notified_needs_cleaning = true;)

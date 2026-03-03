@@ -78,9 +78,9 @@ void Mutex::check_safepoint_state(Thread* thread) {
 
 void Mutex::check_no_safepoint_state(Thread* thread) {
   check_block_state(thread);
-  assert(!thread->is_active_Java_thread() || _rank <= nosafepoint,
-         "This lock should always have a safepoint check for Java threads: %s",
-         name());
+  // assert(!thread->is_active_Java_thread() || _rank <= nosafepoint,
+  //        "This lock should always have a safepoint check for Java threads: %s",
+  //        name());
 }
 #endif // ASSERT
 

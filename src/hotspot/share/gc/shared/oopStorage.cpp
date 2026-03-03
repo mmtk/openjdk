@@ -23,6 +23,7 @@
  */
 
 #include "precompiled.hpp"
+#include "gc/shared/collectedHeap.hpp"
 #include "gc/shared/oopStorage.inline.hpp"
 #include "gc/shared/oopStorageParState.inline.hpp"
 #include "logging/log.hpp"
@@ -454,6 +455,9 @@ oop* OopStorage::allocate() {
     _allocation_list.unlink(*block);
   }
   log_trace(oopstorage, ref)("%s: allocated " PTR_FORMAT, name(), p2i(result));
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+  Universe::heap()->register_new_weak_handle(result);
+#endif
   return result;
 }
 
