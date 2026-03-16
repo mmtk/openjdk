@@ -456,7 +456,7 @@ oop* OopStorage::allocate() {
   }
   log_trace(oopstorage, ref)("%s: allocated " PTR_FORMAT, name(), p2i(result));
 #ifdef INCLUDE_THIRD_PARTY_HEAP
-  Universe::heap()->register_new_weak_handle(result);
+  // Universe::heap()->register_new_weak_handle(result);
 #endif
   return result;
 }
@@ -496,6 +496,10 @@ size_t OopStorage::allocate(oop** ptrs, size_t size) {
     unsigned index = count_trailing_zeros(taken);
     taken ^= block->bitmask_for_index(index);
     ptrs[i] = block->get_pointer(index);
+
+#ifdef INCLUDE_THIRD_PARTY_HEAP
+  // Universe::heap()->register_new_weak_handle(ptrs[i]);
+#endif
   }
   // If more entries taken than requested, release remainder.
   if (taken == 0) {
