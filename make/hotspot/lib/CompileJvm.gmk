@@ -182,6 +182,11 @@ $(eval $(call SetupNativeCompilation, BUILD_LIBJVM, \
     PRECOMPILED_HEADER_EXCLUDE := $(JVM_PRECOMPILED_HEADER_EXCLUDE), \
 ))
 
+ifneq ($(strip $(THIRD_PARTY_HEAP_JVM_DEPS)), )
+  BUILD_LIBJVM_TARGET_DEPS += $(THIRD_PARTY_HEAP_JVM_DEPS)
+  $(BUILD_LIBJVM_TARGET): $(THIRD_PARTY_HEAP_JVM_DEPS)
+endif
+
 # Always recompile abstract_vm_version.cpp if libjvm needs to be relinked. This ensures
 # that the internal vm version is updated as it relies on __DATE__ and __TIME__
 # macros.
